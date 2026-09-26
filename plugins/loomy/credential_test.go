@@ -222,3 +222,31 @@ func TestAuthDataForShape(t *testing.T) {
 		t.Fatal("a credential with a local expiry must carry a next-probe time")
 	}
 }
+
+// TestAuthDataForModelPrefixToggle pins the `model_prefix` switch: with it off
+// the host must stop publishing `<account>/<model>` copies of every model.
+func TestAuthDataForModelPrefixToggle(t *testing.T) {
+	previous := settings()
+	setSettings(DefaultConfig())
+	t.Cleanup(func() { setSettings(previous) })
+
+	on, errOn := authDataFor(sampleCredential(t), "")
+	if errOn != nil {
+		t.Fatalf("authDataFor: %v", errOn)
+	}
+	if on.Prefix == "" {
+		t.Fatal("model_prefix=true must keep the account id as the prefix")
+	}
+
+	cfg := settings()
+	cfg.ModelPrefix = false
+	setSettings(cfg)
+
+	off, errOff := authDataFor(sampleCredential(t), "")
+	if errOff != nil {
+		t.Fatalf("authDataFor: %v", errOff)
+	}
+	if off.Prefix != "" {
+		t.Fatalf("Prefix = %q, want empty when model_prefix is false", off.Prefix)
+	}
+}

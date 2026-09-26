@@ -138,6 +138,9 @@ func authDataFor(credential *Credential, fileName string) (pluginapi.AuthData, e
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
+	if !settings().ModelPrefix {
+		prefix = ""
+	}
 	metadata := map[string]any{"region": string(region)}
 	if credential.ExpireTime > 0 {
 		metadata["expires_at"] = credential.ExpiresAt().UTC().Format(time.RFC3339)

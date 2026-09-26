@@ -373,6 +373,35 @@ func TestAuthDataForSchedulesRefreshBeforeExpiry(t *testing.T) {
 	}
 }
 
+// TestAuthDataForModelPrefixToggle pins the `model_prefix` switch: with it off
+// the host must stop publishing `<account>/<model>` copies of every model.
+func TestAuthDataForModelPrefixToggle(t *testing.T) {
+	previous := settings()
+	setSettings(DefaultConfig())
+	t.Cleanup(func() { setSettings(previous) })
+
+	credential := &Credential{AccessToken: "workos:eyJ", RefreshToken: "r", AccountID: "usr-1", Email: "a@b.c"}
+	on, errOn := authDataFor(credential, "")
+	if errOn != nil {
+		t.Fatalf("authDataFor: %v", errOn)
+	}
+	if on.Prefix == "" {
+		t.Fatal("model_prefix=true must keep the account id as the prefix")
+	}
+
+	cfg := settings()
+	cfg.ModelPrefix = false
+	setSettings(cfg)
+
+	off, errOff := authDataFor(credential, "")
+	if errOff != nil {
+		t.Fatalf("authDataFor: %v", errOff)
+	}
+	if off.Prefix != "" {
+		t.Fatalf("Prefix = %q, want empty when model_prefix is false", off.Prefix)
+	}
+}
+
 // TestParseAuthFileRoutesToTheProvider pins auth.parse.
 func TestParseAuthFileRoutesToTheProvider(t *testing.T) {
 	raw := []byte(`{"access_token":"workos:eyJ","refresh_token":"r","account_id":"usr-1"}`)

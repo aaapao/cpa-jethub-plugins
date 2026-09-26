@@ -229,6 +229,34 @@ func TestAuthDataFor(t *testing.T) {
 	}
 }
 
+// TestAuthDataForModelPrefixToggle pins the `model_prefix` switch: with it off
+// the host must stop publishing `<account>/<model>` copies of every model.
+func TestAuthDataForModelPrefixToggle(t *testing.T) {
+	previous := settings()
+	setSettings(DefaultConfig())
+	t.Cleanup(func() { setSettings(previous) })
+
+	on, errOn := authDataFor(providerTypeCredential(), "")
+	if errOn != nil {
+		t.Fatalf("authDataFor: %v", errOn)
+	}
+	if on.Prefix == "" {
+		t.Fatal("model_prefix=true must keep the account id as the prefix")
+	}
+
+	cfg := settings()
+	cfg.ModelPrefix = false
+	setSettings(cfg)
+
+	off, errOff := authDataFor(providerTypeCredential(), "")
+	if errOff != nil {
+		t.Fatalf("authDataFor: %v", errOff)
+	}
+	if off.Prefix != "" {
+		t.Fatalf("Prefix = %q, want empty when model_prefix is false", off.Prefix)
+	}
+}
+
 // TestApplyTraeRefresh locks the device-identity rule: refresh rotates the
 // tokens but must never regenerate machine_id or device_id.
 func TestApplyTraeRefresh(t *testing.T) {

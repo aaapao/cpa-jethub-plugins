@@ -74,6 +74,8 @@ type Config struct {
 	// not appear anywhere in the TypeScript sources, so this plugin must not
 	// invent them.
 	PublicModels []string
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// DefaultMaxTokens is applied when a request omits max_tokens; 0 sends none.
 	DefaultMaxTokens int
 	// FirstTokenTimeoutMS / ChunkTimeoutMS bound the upstream SSE stream.
@@ -91,6 +93,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Enabled:             true,
+		ModelPrefix:         true,
 		Region:              RegionGlobal,
 		ClientVersion:       DefaultClientVersion,
 		DefaultMaxTokens:    0,
@@ -135,6 +138,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.ClientVersion = coerceString(raw["client_version"], cfg.ClientVersion)
 	cfg.SessionType = coerceString(raw["session_type"], cfg.SessionType)
 	cfg.PublicModels = coerceList(raw["public_models"])
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.DefaultMaxTokens = coerceInt(raw["max_tokens"], cfg.DefaultMaxTokens)
 	cfg.FirstTokenTimeoutMS = coerceInt(raw["first_token_timeout_ms"], cfg.FirstTokenTimeoutMS)
 	cfg.ChunkTimeoutMS = coerceInt(raw["chunk_timeout_ms"], cfg.ChunkTimeoutMS)
@@ -256,6 +260,7 @@ func ConfigFields() []configField {
 		{Name: "client_version", Type: "string", Description: "Cosy-Version 客户端版本（默认 1.1.49，对应 qoder-wasm.ts 的 COSY_VERSION）"},
 		{Name: "session_type", Type: "string", Description: "加密请求体的 session_type，留空则按区域取值（国际 qodercli / 国内 qoder_work）"},
 		{Name: "public_models", Type: "string", Description: "公开端点额外可用的通用模型名，逗号分隔（如 qwen-flash,qwen-plus）。目录 key 只对加密端点有效，公开端点不认"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "max_tokens", Type: "integer", Description: "请求未指定 max_tokens 时的默认值，0 表示不发送"},
 		{Name: "first_token_timeout_ms", Type: "integer", Description: "等待上游首个 SSE 分片的超时，毫秒"},
 		{Name: "chunk_timeout_ms", Type: "integer", Description: "两个上游 SSE 分片之间的超时，毫秒"},

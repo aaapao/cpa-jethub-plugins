@@ -23,6 +23,8 @@ type Config struct {
 	// by default: the reference prefers the remote catalogue and treats its
 	// bundled table as a degraded mode only (`raccoon-auth.ts:380-410`).
 	DiscoverModels bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// ModelCacheTTLMS bounds how long a discovered catalogue is reused.
 	ModelCacheTTLMS int
 
@@ -43,6 +45,7 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:               true,
 		DiscoverModels:        true,
+		ModelPrefix:           true,
 		ModelCacheTTLMS:       ModelCacheTTLMS,
 		RequestTimeoutMS:      RequestTimeoutMS,
 		CatalogueTimeoutMS:    CatalogueTimeoutMS,
@@ -71,6 +74,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.Enabled = coerceBool(raw["enabled"], cfg.Enabled)
 	cfg.Priority = coerceInt(raw["priority"], cfg.Priority)
 	cfg.DiscoverModels = coerceBool(raw["discover_models"], cfg.DiscoverModels)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.ModelCacheTTLMS = coerceInt(raw["model_cache_ttl_ms"], cfg.ModelCacheTTLMS)
 	cfg.RequestTimeoutMS = coerceInt(raw["request_timeout_ms"], cfg.RequestTimeoutMS)
 	cfg.CatalogueTimeoutMS = coerceInt(raw["catalogue_timeout_ms"], cfg.CatalogueTimeoutMS)
@@ -135,6 +139,7 @@ func ConfigFields() []configField {
 		{Name: "discover_models", Type: "boolean",
 			Description: "是否用账号会话实时拉取 GET /model_catalog（默认开启）。关闭时只使用内置的 6 个兜底模型；" +
 				"远端目录拉取失败时也会静默回退到兜底表，不会报错"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "model_cache_ttl_ms", Type: "integer", Description: "实时模型目录的缓存时长，毫秒（默认 2 小时）"},
 		{Name: "request_timeout_ms", Type: "integer",
 			Description: "auth / user_info / 积分接口的单次请求超时，毫秒（默认 60000）"},

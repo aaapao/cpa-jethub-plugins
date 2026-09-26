@@ -102,6 +102,7 @@ func TestConfigFieldsAreDeclared(t *testing.T) {
 	want := map[string]string{
 		"phone":                "string",
 		"discover_models":      "boolean",
+		"model_prefix":         "boolean",
 		"model_cache_ttl_ms":   "integer",
 		"sms_code_ttl_seconds": "integer",
 		"session_ttl_seconds":  "integer",

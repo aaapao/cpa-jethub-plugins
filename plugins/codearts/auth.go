@@ -36,6 +36,9 @@ func authDataFor(credential *Credential, fileName string) (pluginapi.AuthData, e
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
+	if !settings().ModelPrefix {
+		prefix = ""
+	}
 	return pluginapi.AuthData{
 		Provider:    ProviderKey,
 		ID:          fileName,

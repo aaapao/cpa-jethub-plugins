@@ -17,6 +17,8 @@ type Config struct {
 	// When false only the static fallback table is published, which avoids two
 	// upstream round trips per listing.
 	ModelDiscovery bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// ModelCacheTTLMS bounds how long a fetched catalogue is reused. The remote
 	// `free` array is server-side marketing state that the source re-fetches
 	// every time (`README.md:1269-1270`), so the default is short (10 min) and 0
@@ -54,6 +56,7 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:                true,
 		ModelDiscovery:         true,
+		ModelPrefix:            true,
 		ModelCacheTTLMS:        600_000,
 		DefaultMaxTokens:       0,
 		MaxOutputTokens:        MaxOutputTokensCeiling,
@@ -92,6 +95,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.Enabled = coerceBool(raw["enabled"], cfg.Enabled)
 	cfg.Priority = coerceInt(raw["priority"], cfg.Priority)
 	cfg.ModelDiscovery = coerceBool(raw["model_discovery"], cfg.ModelDiscovery)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.ModelCacheTTLMS = coerceInt(raw["model_cache_ttl_ms"], cfg.ModelCacheTTLMS)
 	cfg.DefaultMaxTokens = coerceInt(raw["max_tokens"], cfg.DefaultMaxTokens)
 	cfg.MaxOutputTokens = coerceInt(raw["max_output_tokens"], cfg.MaxOutputTokens)
@@ -200,6 +204,7 @@ func ConfigFields() []configField {
 	return []configField{
 		{Name: "model_discovery", Type: "boolean",
 			Description: "是否在 model.for_auth 拉取线上目录：/api/v1/ai/cline/recommended-models（匿名，免费名单的唯一权威来源）与 /api/v1/models（需要凭据）。关闭后只发布静态表"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "model_cache_ttl_ms", Type: "integer",
 			Description: "线上目录缓存时长，毫秒（默认 600000）。免费名单是服务端营销状态，随时会变，0 表示每次都重新拉取"},
 		{Name: "max_tokens", Type: "integer",

@@ -341,6 +341,9 @@ func authDataFor(credential *Credential, fileName string) (pluginapi.AuthData, e
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
+	if !settings().ModelPrefix {
+		prefix = ""
+	}
 	expiresAt := ""
 	nextRefresh := time.Time{}
 	if expiry, ok := credential.Expiry(); ok {

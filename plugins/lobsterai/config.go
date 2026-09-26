@@ -122,6 +122,8 @@ type Config struct {
 	RequestTimeoutMS int
 	// DailyCheckin enables the management check-in routes.
 	DailyCheckin bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 
 	// CallbackPort pins the loopback callback listener to an exact port. The
 	// LobsterAI portal takes a full `redirect_uri` and echoes `state`, so the
@@ -151,6 +153,7 @@ func DefaultConfig() Config {
 		ModelCacheTTLMS:  2 * 60 * 60 * 1000,
 		RequestTimeoutMS: RequestTimeoutMS,
 		DailyCheckin:     true,
+		ModelPrefix:      true,
 	}
 }
 
@@ -180,6 +183,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.Enabled = coerceBool(raw["enabled"], cfg.Enabled)
 	cfg.DiscoverModels = coerceBool(raw["discover_models"], cfg.DiscoverModels)
 	cfg.DailyCheckin = coerceBool(raw["daily_checkin"], cfg.DailyCheckin)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.ClientVersionOverride = coerceString(raw["client_version"], cfg.ClientVersionOverride)
 	cfg.DefaultMaxTokens = coerceInt(raw["max_tokens"], cfg.DefaultMaxTokens)
 	cfg.ModelCacheTTLMS = coerceInt(raw["model_cache_ttl_ms"], cfg.ModelCacheTTLMS)
@@ -263,6 +267,7 @@ type configField struct {
 func ConfigFields() []configField {
 	return []configField{
 		{Name: "discover_models", Type: "boolean", Description: "是否调用 /api/models/available 动态发现模型（含远端模型参数与思考档位），关闭则使用内置兜底列表"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "client_version", Type: "string", Description: "固定客户端版本号（如 2026.9.4）；留空表示从有道更新接口动态获取，失败时回退 2026.9.4"},
 		{Name: "max_tokens", Type: "integer", Description: "请求未指定 max_tokens 且远端模型未声明 maxTokens 时使用的默认值（0 = 不下发该字段）"},
 		{Name: "model_cache_ttl_ms", Type: "integer", Description: "动态模型列表缓存时长，毫秒"},

@@ -401,6 +401,8 @@ type Config struct {
 	ModelCacheTTLMS int
 	// CheckinEnabled allows the daily check-in route to call upstream.
 	CheckinEnabled bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 }
 
 // DefaultConfig returns the settings used when the user provides nothing.
@@ -416,6 +418,7 @@ func DefaultConfig() Config {
 		ChunkTimeoutMS:      120000,
 		ModelCacheTTLMS:     2 * 60 * 60 * 1000,
 		CheckinEnabled:      true,
+		ModelPrefix:         true,
 	}
 }
 
@@ -453,6 +456,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.PromptCacheKey = coerceBool(raw["prompt_cache_key"], cfg.PromptCacheKey)
 	cfg.ThinkingEnabled = coerceBool(raw["thinking_enabled"], cfg.ThinkingEnabled)
 	cfg.CheckinEnabled = coerceBool(raw["checkin_enabled"], cfg.CheckinEnabled)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.DefaultMaxTokens = coerceInt(raw["max_tokens"], cfg.DefaultMaxTokens)
 	cfg.FirstTokenTimeoutMS = coerceInt(raw["first_token_timeout_ms"], cfg.FirstTokenTimeoutMS)
 	cfg.ChunkTimeoutMS = coerceInt(raw["chunk_timeout_ms"], cfg.ChunkTimeoutMS)
@@ -552,6 +556,7 @@ func ConfigFields() []configField {
 				"每个插件实例只服务一个产品；已登录账号的产品记在凭据里，改本项不影响旧账号",
 		},
 		{Name: "discover_models", Type: "boolean", Description: "是否调用远端接口（/v3/config 与企业模型端点）动态发现模型列表，关闭则使用内置兜底表"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "prompt_cache_key", Type: "boolean", Description: "为请求附加稳定的 prompt_cache_key 以命中提示缓存（实测可显著降低计费）"},
 		{Name: "thinking_enabled", Type: "boolean", Description: "对 deepseek 系模型注入 thinking:{type:'enabled'}（reasoning_effort 才是真正的思考开关）"},
 		{Name: "checkin_enabled", Type: "boolean", Description: "允许管理页/额度接口调用每日签到（仅国内版 CodeBuddy 支持）"},

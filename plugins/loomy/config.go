@@ -148,6 +148,8 @@ type Config struct {
 	// default so `model.*` never touches the network when no account exists
 	// (`loomy-adapter.ts:198-200`).
 	DiscoverModels bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// ModelCacheTTLMS bounds the discovered catalogue lifetime.
 	ModelCacheTTLMS int
 }
@@ -156,6 +158,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Enabled:           true,
+		ModelPrefix:       true,
 		SMSCodeTTLSeconds: SMSCodeTTLSeconds,
 		SessionTTLSeconds: SessionTTLSeconds,
 		LoginTimeoutMS:    LoginTimeoutMS,
@@ -198,6 +201,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.LoginTimeoutMS = coerceInt(raw["login_timeout_ms"], cfg.LoginTimeoutMS)
 	cfg.RequestTimeoutMS = coerceInt(raw["request_timeout_ms"], cfg.RequestTimeoutMS)
 	cfg.DiscoverModels = coerceBool(raw["discover_models"], cfg.DiscoverModels)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.ModelCacheTTLMS = coerceInt(raw["model_cache_ttl_ms"], cfg.ModelCacheTTLMS)
 	return cfg
 }
@@ -287,6 +291,7 @@ func ConfigFields() []configField {
 				"走短信备用路径时号码也可以直接在登录页用数字链接输入，或用链接参数 ?phone= 覆盖，因此这一项只是省事的默认值"},
 		{Name: "discover_models", Type: "boolean",
 			Description: "是否用账号会话实时拉取 GET /models 目录（默认关闭）。关闭时只使用内置的 8 个兜底模型"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "model_cache_ttl_ms", Type: "integer", Description: "实时模型目录的缓存时长，毫秒（默认 2 小时）"},
 		{Name: "sms_code_ttl_seconds", Type: "integer", Description: "向讯飞账号服务声明的短信验证码有效期，秒（默认 300）"},
 		{Name: "session_ttl_seconds", Type: "integer",

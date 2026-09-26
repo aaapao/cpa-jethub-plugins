@@ -68,6 +68,8 @@ type Config struct {
 	// DiscoverModels enables the two signed model-listing endpoints. When false
 	// the static fallback list is used, which avoids an upstream round trip.
 	DiscoverModels bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// DefaultMaxTokens is applied when a request omits max_tokens.
 	DefaultMaxTokens int
 	// BenefitModels routes the known benefit model through maas_type=benefit.
@@ -113,6 +115,7 @@ func DefaultConfig() Config {
 		Enabled:             true,
 		Flow:                LoginFlowOAuth,
 		DiscoverModels:      true,
+		ModelPrefix:         true,
 		DefaultMaxTokens:    65536,
 		BenefitModels:       true,
 		ToolStream:          true,
@@ -149,6 +152,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.Priority = coerceInt(raw["priority"], cfg.Priority)
 	cfg.Flow = coerceFlow(raw["flow"], cfg.Flow)
 	cfg.DiscoverModels = coerceBool(raw["discover_models"], cfg.DiscoverModels)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.BenefitModels = coerceBool(raw["benefit_models"], cfg.BenefitModels)
 	cfg.ToolStream = coerceBool(raw["tool_stream"], cfg.ToolStream)
 	cfg.PromptCacheKey = coerceBool(raw["prompt_cache_key"], cfg.PromptCacheKey)
@@ -241,6 +245,7 @@ func ConfigFields() []configField {
 	return []configField{
 		{Name: "flow", Type: "enum", EnumValues: []string{LoginFlowOAuth, LoginFlowTicket}, Description: "登录方式：oauth=浏览器 PKCE 授权（默认），ticket=旧版票据轮询"},
 		{Name: "discover_models", Type: "boolean", Description: "是否调用远端接口动态发现模型列表，关闭则使用内置列表"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "benefit_models", Type: "boolean", Description: "对 glm-5.3-flash 使用 maas_type=benefit 签名头（权益模型）"},
 		{Name: "tool_stream", Type: "boolean", Description: "启用 deepseek 系列的工具调用流式模式（DSML）"},
 		{Name: "prompt_cache_key", Type: "boolean", Description: "为请求附加稳定的 prompt_cache_key 以命中提示缓存"},

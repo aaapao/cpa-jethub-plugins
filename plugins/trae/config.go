@@ -221,6 +221,8 @@ type Config struct {
 	// DiscoverModels enables the remote catalog call. When false the static
 	// fallback list is used.
 	DiscoverModels bool
+	// ModelPrefix 是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字。
+	ModelPrefix bool
 	// Channels is the list of SOLO channels requested from
 	// batch_get_detail_param. Order is the priority order.
 	Channels []string
@@ -274,6 +276,7 @@ func DefaultConfig() Config {
 		Enabled:             true,
 		Region:              RegionCN,
 		DiscoverModels:      true,
+		ModelPrefix:         true,
 		Channels:            splitList(DefaultChannels),
 		DefaultChannel:      DefaultFunction,
 		MaxMode:             true,
@@ -317,6 +320,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.Priority = coerceInt(raw["priority"], cfg.Priority)
 	cfg.Region = coerceRegion(raw["region"], cfg.Region)
 	cfg.DiscoverModels = coerceBool(raw["discover_models"], cfg.DiscoverModels)
+	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	if channels := coerceList(raw["channels"]); len(channels) > 0 {
 		cfg.Channels = channels
 	}
@@ -444,6 +448,7 @@ func ConfigFields() []configField {
 			Description: "区域站点：trae=国内（trae.cn，默认），trae-intl=国际（trae.ai）。两侧端点与登录态互不相通"},
 		{Name: "discover_models", Type: "boolean",
 			Description: "是否调用 batch_get_detail_param 动态发现模型目录（含通道归属）；关闭则使用内置兜底列表"},
+		{Name: "model_prefix", Type: "boolean", Description: "是否把账号 ID 作为模型前缀暴露（<账号>/<模型>）。关闭后模型列表只显示模型本身的名字"},
 		{Name: "channels", Type: "string",
 			Description: "要拉取的 SOLO 通道，逗号分隔，顺序即优先级（默认 solo_agent,solo_work_lite,solo_agent_remote）"},
 		{Name: "default_channel", Type: "string",

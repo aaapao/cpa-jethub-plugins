@@ -151,6 +151,7 @@ func TestConfigCoercion(t *testing.T) {
 func TestConfigFieldNames(t *testing.T) {
 	expected := map[string]bool{
 		"model_discovery":    true,
+		"model_prefix":       true,
 		"model_cache_ttl_ms": true,
 		"max_tokens":         true,
 		"max_output_tokens":  true,
@@ -191,6 +192,7 @@ func TestConfigFieldTypes(t *testing.T) {
 	}
 	for name, want := range map[string]string{
 		"model_discovery":    "boolean",
+		"model_prefix":       "boolean",
 		"model_cache_ttl_ms": "integer",
 		"max_tokens":         "integer",
 		"max_output_tokens":  "integer",

@@ -130,6 +130,9 @@ func authDataFor(credential *Credential, fileName string) (pluginapi.AuthData, e
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
+	if !settings().ModelPrefix {
+		prefix = ""
+	}
 	metadata := map[string]any{
 		"userid":     credential.UserID,
 		"phone":      credential.Phone,

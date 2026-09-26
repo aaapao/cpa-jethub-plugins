@@ -407,6 +407,35 @@ func TestAuthDataFor(t *testing.T) {
 	}
 }
 
+// TestAuthDataForModelPrefixToggle pins the `model_prefix` switch: with it off
+// the host must stop publishing `<account>/<model>` copies of every model.
+func TestAuthDataForModelPrefixToggle(t *testing.T) {
+	previous := settings()
+	setSettings(DefaultConfig())
+	t.Cleanup(func() { setSettings(previous) })
+
+	credential := &Credential{AccessToken: "a", RefreshToken: "r", UID: "uid-123", Nickname: "nick"}
+	on, errOn := authDataFor(credential, "")
+	if errOn != nil {
+		t.Fatalf("authDataFor: %v", errOn)
+	}
+	if on.Prefix == "" {
+		t.Fatal("model_prefix=true must keep the account id as the prefix")
+	}
+
+	cfg := settings()
+	cfg.ModelPrefix = false
+	setSettings(cfg)
+
+	off, errOff := authDataFor(credential, "")
+	if errOff != nil {
+		t.Fatalf("authDataFor: %v", errOff)
+	}
+	if off.Prefix != "" {
+		t.Fatalf("Prefix = %q, want empty when model_prefix is false", off.Prefix)
+	}
+}
+
 func TestHandleAuthParse(t *testing.T) {
 	ours := mustJSON(t, pluginapi.AuthParseRequest{
 		Provider: ProviderKey,
