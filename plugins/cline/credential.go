@@ -199,6 +199,15 @@ func parseTokenEnvelope(body []byte) clineTokens {
 		AccountID:    readStringField(payload, "accountId", "account_id"),
 		Email:        readStringField(payload, "email"),
 	}
+	// Neither the refresh nor the register answer states an absolute expiry, so
+	// the expiry has to come from the token itself: without it every renewed
+	// credential keeps its old expiry and is renewed again on the next request.
+	if tokens.ExpireTime == 0 {
+		tokens.ExpireTime = expiryFromTokenMillis(tokens.AccessToken)
+	}
+	if tokens.ExpireTime == 0 {
+		tokens.ExpireTime = relativeExpiryMillis(payload, time.Now())
+	}
 	if user, okUser := payload["userInfo"].(map[string]any); okUser {
 		if account := readStringField(user, "clineUserId", "accountId", "account_id"); account != "" {
 			tokens.AccountID = account
