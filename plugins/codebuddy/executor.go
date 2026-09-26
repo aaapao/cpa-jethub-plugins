@@ -172,7 +172,11 @@ func normalizeMessages(raw []any) []any {
 		case "assistant":
 			flushImages()
 			out = append(out, normalizeAssistantMessage(record, keepCallIDs))
-		case "system":
+		case "system", "developer":
+			// 上游不认 OpenAI 的 `developer` 角色：带该角色的请求会被网关直接拒绝
+			// （400「Illegal API invocation from an unapproved channel」，文案与角色
+			// 无关——同一请求把 role 换成 system/user 均 200）。两者在 OpenAI 规范里
+			// 语义相同（developer 是 system 的新名字），因此按 `system` 下发。
 			flushImages()
 			copied := map[string]any{"role": "system", "content": stringValue(record["content"])}
 			out = append(out, copied)
@@ -193,7 +197,7 @@ func normalizeMessages(raw []any) []any {
 				"content":      text,
 			})
 		default:
-			// user / developer / function …: content is already OpenAI-shaped.
+			// user / function …: content is already OpenAI-shaped.
 			flushImages()
 			out = append(out, record)
 		}

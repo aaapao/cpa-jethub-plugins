@@ -517,3 +517,31 @@ func TestExecutorIdentifierAndCountTokens(t *testing.T) {
 
 func intPointer(value int) *int          { return &value }
 func stringPointer(value string) *string { return &value }
+
+// CodeBuddy 的上游网关不认 OpenAI 的 `developer` 角色：带该角色的请求被直接拒绝
+// （400「Illegal API invocation from an unapproved channel」），而 system/user 均正常。
+// DSH 的系统提示词正是 developer 角色，因此必须按等价的 system 下发。
+func TestNormalizeMessagesDemotesDeveloperRole(t *testing.T) {
+	out := normalizeMessages([]any{
+		map[string]any{"role": "developer", "content": "你是一个编码代理"},
+		map[string]any{"role": "system", "content": "系统提示"},
+		map[string]any{"role": "user", "content": "你好"},
+	})
+
+	if len(out) != 3 {
+		t.Fatalf("messages = %d, want 3", len(out))
+	}
+	first, _ := out[0].(map[string]any)
+	if first["role"] != "system" {
+		t.Errorf("role = %v, want system (developer is not accepted upstream)", first["role"])
+	}
+	if first["content"] != "你是一个编码代理" {
+		t.Errorf("content = %v, want it preserved", first["content"])
+	}
+	for index, want := range []string{"system", "system", "user"} {
+		record, _ := out[index].(map[string]any)
+		if record["role"] != want {
+			t.Errorf("message %d role = %v, want %s", index, record["role"], want)
+		}
+	}
+}
