@@ -1,10 +1,12 @@
 package abiboot
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 
+	"github.com/collegeming/cpa-jethub-plugins/internal/jethub/credjson"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
 )
@@ -16,6 +18,13 @@ type Host struct {
 	CallbackID string
 	PluginID   string
 	Config     pluginapi.HostConfigSummary
+	// Incoming is the raw auth payload the host supplied for this invocation
+	// (`RawJSON` on auth.parse, `StorageJSON` on auth.refresh and the model and
+	// execution paths). It is the auth file as the host sees it, so SaveAuth can
+	// carry forward the members this plugin does not own: the host reads
+	// `priority` and `weight` from that same file to choose a credential, and a
+	// rewrite that drops them silently resets the credential's routing tier.
+	Incoming json.RawMessage
 }
 
 // NewHost extracts the callback identity and host summary from an inbound
@@ -29,6 +38,11 @@ func NewHost(raw json.RawMessage) *Host {
 		PluginID       string                      `json:"plugin_id"`
 		HostUpper      pluginapi.HostConfigSummary `json:"Host"`
 		HostLower      pluginapi.HostConfigSummary `json:"host"`
+		// Both are []byte on the wire, so encoding/json hands them back already
+		// base64-decoded. RawJSON is the parse path, StorageJSON the refresh and
+		// execution paths; either one is the file the host is holding.
+		RawJSON     []byte `json:"RawJSON"`
+		StorageJSON []byte `json:"StorageJSON"`
 	}
 	if err := json.Unmarshal(raw, &probe); err != nil {
 		return &Host{}
@@ -37,7 +51,11 @@ func NewHost(raw json.RawMessage) *Host {
 	if config.AuthDir == "" && config.ProxyURL == "" && len(config.ExcludedModels) == 0 {
 		config = probe.HostUpper
 	}
-	return &Host{CallbackID: probe.HostCallbackID, PluginID: probe.PluginID, Config: config}
+	incoming := probe.RawJSON
+	if len(bytes.TrimSpace(incoming)) == 0 {
+		incoming = probe.StorageJSON
+	}
+	return &Host{CallbackID: probe.HostCallbackID, PluginID: probe.PluginID, Config: config, Incoming: incoming}
 }
 
 // HTTPDoRequest is the wire shape of host.http.do. The host decodes a flat
@@ -146,8 +164,14 @@ func (s *HTTPStream) Close() error {
 
 // SaveAuth persists an auth file through the host so it appears in the CPA auth
 // directory and management UI. storage must be a JSON object.
+//
+// host.auth.save replaces the whole file (pluginapi.HostAuthSaveRequest carries
+// only a name and a JSON blob), so the members the plugin does not define are
+// carried forward from Incoming. Without that, every self-initiated refresh
+// would erase host-owned routing members such as `priority` and `weight`, and
+// the credential would silently fall back to the default tier.
 func (h *Host) SaveAuth(name string, storage json.RawMessage) (*pluginapi.HostAuthSaveResponse, error) {
-	payload := pluginapi.HostAuthSaveRequest{Name: name, JSON: storage}
+	payload := pluginapi.HostAuthSaveRequest{Name: name, JSON: credjson.MergePreserved(h.Incoming, storage)}
 	out := &pluginapi.HostAuthSaveResponse{}
 	if err := HostCallInto(pluginabi.MethodHostAuthSave, payload, out); err != nil {
 		return nil, err
