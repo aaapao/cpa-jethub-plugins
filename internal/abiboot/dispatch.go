@@ -96,7 +96,12 @@ func dispatch(p Plugin, method string, payload []byte) (any, error) {
 	if len(raw) == 0 {
 		raw = json.RawMessage("{}")
 	}
-	return handler(NewHost(raw), raw)
+	host := NewHost(raw)
+	result, errHandler := handler(host, raw)
+	if errHandler != nil {
+		return nil, errHandler
+	}
+	return carryFileMembers(host, result), nil
 }
 
 // Decode unmarshals a method payload into a typed request, tolerating the extra
