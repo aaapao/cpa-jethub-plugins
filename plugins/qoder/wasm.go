@@ -1,15 +1,13 @@
 package main
 
-// Optional WASM signer for the encrypted inference path.
+// WASM signer for the encrypted inference path.
 //
-// WHY THIS IS OPTIONAL AND NOT BUNDLED
-//
-// The signing headers are produced by `qoder-auth-wasm.wasm`, a ~292 KB
-// third-party build artifact shipped inside the Qoder client. Redistributing
-// that binary in this repository is a licensing decision that belongs to the
-// repository owner, so the plugin does NOT embed it. Instead the `wasm_path`
-// setting points at a local copy; when it is empty the plugin serves the public
-// OpenAI-compatible endpoint and the status page says so.
+// The signing headers are produced by `qoder-auth.wasm`, the same artifact
+// extracted from the Qoder client and shipped in the Jet-Hub reference
+// repository (MIT). The binary is embedded in this plugin with go:embed, so no
+// external file is needed; `wasm_path` remains as an override for custom
+// builds. Without a signer the plugin can only serve the public
+// OpenAI-compatible endpoint, which rejects catalog model keys.
 //
 // WHAT THE MODULE EXPORTS (all verified by loading the real artifact with
 // wazero; see the report for the raw output):
@@ -45,16 +43,21 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
+
+//go:embed qoder-auth.wasm
+var embeddedWASM []byte
 
 // wasmImportModule is the module name embedded in the WASM binary; it must match
 // exactly or instantiation fails for a missing import (`qoder-wasm.ts:68-72`).
@@ -136,20 +139,30 @@ var (
 
 // signerFor loads (once) and returns the signer for a WASM path.
 func signerFor(path string) (inferSigner, error) {
-	trimmed := path
+	trimmed := strings.TrimSpace(path)
+	cacheKey := trimmed
+	var raw []byte
 	if trimmed == "" {
-		return nil, fmt.Errorf("wasm_path 未配置")
+		// No external file configured: use the embedded signer.
+		cacheKey = "__embedded__"
+		raw = embeddedWASM
+	} else {
+		var errRead error
+		raw, errRead = os.ReadFile(trimmed)
+		if errRead != nil {
+			return nil, fmt.Errorf("读取 %s 失败：%w", trimmed, errRead)
+		}
 	}
 	signerMu.Lock()
 	defer signerMu.Unlock()
-	if cached, ok := signerCache[trimmed]; ok {
+	if cached, ok := signerCache[cacheKey]; ok {
 		return cached, nil
 	}
-	signer, errLoad := newWasmSigner(trimmed)
+	signer, errLoad := newWasmSigner(raw)
 	if errLoad != nil {
 		return nil, errLoad
 	}
-	signerCache[trimmed] = signer
+	signerCache[cacheKey] = signer
 	return signer, nil
 }
 
@@ -178,11 +191,7 @@ type wasmSigner struct {
 }
 
 // newWasmSigner compiles the module and installs the wasm-bindgen host imports.
-func newWasmSigner(path string) (*wasmSigner, error) {
-	raw, errRead := os.ReadFile(path)
-	if errRead != nil {
-		return nil, fmt.Errorf("读取 %s 失败：%w", path, errRead)
-	}
+func newWasmSigner(raw []byte) (*wasmSigner, error) {
 	ctx := context.Background()
 	// Cap growth so a corrupt module cannot exhaust the process.
 	config := wazero.NewRuntimeConfig().WithMemoryLimitPages(1024)
@@ -190,7 +199,7 @@ func newWasmSigner(path string) (*wasmSigner, error) {
 	compiled, errCompile := runtime.CompileModule(ctx, raw)
 	if errCompile != nil {
 		_ = runtime.Close(ctx)
-		return nil, fmt.Errorf("编译 %s 失败：%w", path, errCompile)
+		return nil, fmt.Errorf("编译 WASM 模块失败：%w", errCompile)
 	}
 	signer := &wasmSigner{runtime: runtime, compiled: compiled}
 	if errImports := signer.installImports(ctx); errImports != nil {

@@ -41,10 +41,9 @@ const (
 
 // activeInferPath reports which path the configuration selects.
 func activeInferPath(cfg Config) inferPath {
-	if strings.TrimSpace(cfg.WASMPath) != "" {
-		return pathEncrypted
-	}
-	return pathPublic
+	// The WASM signer is embedded in the plugin; the encrypted path is always
+	// available. `wasm_path` remains as an override for custom signer builds.
+	return pathEncrypted
 }
 
 // executorStreamResponse is the wire shape of executor.execute_stream.

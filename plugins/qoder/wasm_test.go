@@ -368,7 +368,8 @@ func syntheticSigner(t *testing.T) *wasmSigner {
 	if errWrite := os.WriteFile(path, buildSyntheticWasm(), 0o600); errWrite != nil {
 		t.Fatalf("write synthetic module: %v", errWrite)
 	}
-	signer, errLoad := newWasmSigner(path)
+	raw, _ := os.ReadFile(path)
+	signer, errLoad := newWasmSigner(raw)
 	if errLoad != nil {
 		t.Fatalf("load synthetic module: %v", errLoad)
 	}
@@ -445,8 +446,13 @@ func TestSignerForCachesAndValidatesPaths(t *testing.T) {
 	resetSignerCache()
 	t.Cleanup(resetSignerCache)
 
-	if _, errSigner := signerFor(""); errSigner == nil {
-		t.Fatal("signerFor(\"\") must fail: the public path needs no signer")
+	// Empty path uses the embedded WASM signer.
+	embedded, errEmbedded := signerFor("")
+	if errEmbedded != nil {
+		t.Fatalf("signerFor(\"\") must succeed with the embedded WASM: %v", errEmbedded)
+	}
+	if embedded == nil {
+		t.Fatal("signerFor(\"\") returned nil signer")
 	}
 	if _, errSigner := signerFor(filepath.Join(t.TempDir(), "missing.wasm")); errSigner == nil {
 		t.Fatal("signerFor must fail for a missing file")
@@ -688,7 +694,8 @@ func TestRealWasmArtifact(t *testing.T) {
 	if path == "" {
 		t.Skip("set QODER_TEST_WASM to a local copy of the signing artifact to run this")
 	}
-	signer, errLoad := newWasmSigner(path)
+	raw, _ := os.ReadFile(path)
+	signer, errLoad := newWasmSigner(raw)
 	if errLoad != nil {
 		t.Fatalf("load real artifact: %v", errLoad)
 	}

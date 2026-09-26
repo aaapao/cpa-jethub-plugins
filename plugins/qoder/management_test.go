@@ -211,7 +211,7 @@ func TestStatusPageRendersHTML(t *testing.T) {
 		"var(--bg-primary",
 		"var(--primary-color",
 		"推理通道",
-		"公开端点",
+		"加密端点",
 		"alice",
 		"额度",
 	} {
@@ -250,11 +250,8 @@ func TestStatusJSONIsMachineReadable(t *testing.T) {
 	if payload["provider"] != ProviderKey {
 		t.Errorf("provider = %v, want %q", payload["provider"], ProviderKey)
 	}
-	if payload["infer_path"] != string(pathPublic) {
-		t.Errorf("infer_path = %v, want %q without a wasm_path", payload["infer_path"], pathPublic)
-	}
-	if payload["wasm_configured"] != false {
-		t.Errorf("wasm_configured = %v, want false", payload["wasm_configured"])
+	if payload["infer_path"] != string(pathEncrypted) {
+		t.Errorf("infer_path = %v, want %q (embedded WASM)", payload["infer_path"], pathEncrypted)
 	}
 	if payload["model_count"] != float64(len(qoderModelCatalog)) {
 		t.Errorf("model_count = %v, want %d", payload["model_count"], len(qoderModelCatalog))
@@ -506,10 +503,10 @@ func TestStatusPageReportsASignerFailure(t *testing.T) {
 	}
 }
 
-// TestExecutorUsesThePublicPathWithoutASigner is the behavioural half of the
+// TestExecutorUsesTheEncryptedPathWithEmbeddedSigner is the behavioural half of the
 // wasm_path switch: with no signer configured the request goes to the public
 // OpenAI-compatible endpoint and the catalog key is forwarded verbatim.
-func TestExecutorUsesThePublicPathWithoutASigner(t *testing.T) {
+func TestExecutorUsesTheEncryptedPathWithEmbeddedSigner(t *testing.T) {
 	host := newFakeHost()
 	var seen abiboot.HTTPDoRequest
 	host.do = func(request abiboot.HTTPDoRequest) (*pluginapi.HTTPResponse, error) {
@@ -519,7 +516,7 @@ func TestExecutorUsesThePublicPathWithoutASigner(t *testing.T) {
 	host.install(t)
 	withSettings(t, DefaultConfig())
 
-	credential := &Credential{AccessToken: "tok", MachineID: "m", Region: string(RegionGlobal)}
+	credential := &Credential{AccessToken: "tok", MachineID: "m", UID: "uid-1", Region: string(RegionGlobal)}
 	storage, _ := credential.Encode()
 	raw, errMarshal := json.Marshal(pluginapi.ExecutorRequest{
 		Model:       "qfmodel",
@@ -537,14 +534,11 @@ func TestExecutorUsesThePublicPathWithoutASigner(t *testing.T) {
 	if !strings.Contains(string(response.Payload), `"ok"`) {
 		t.Fatalf("payload = %s", response.Payload)
 	}
-	if !strings.HasPrefix(seen.URL, "https://api2-v2.qoder.sh"+PublicChatPath) {
-		t.Fatalf("upstream URL = %q, want the public endpoint (no wasm_path configured)", seen.URL)
+	if !strings.HasPrefix(seen.URL, "https://api2.qoder.sh") {
+		t.Fatalf("upstream URL = %q, want the encrypted endpoint (embedded WASM)", seen.URL)
 	}
-	if got := seen.Headers.Get("Authorization"); got != "Bearer tok" {
-		t.Fatalf("Authorization = %q, want the bearer token", got)
-	}
-	if response.Metadata["infer_path"] != string(pathPublic) {
-		t.Fatalf("metadata infer_path = %v, want %q", response.Metadata["infer_path"], pathPublic)
+	if response.Metadata["infer_path"] != string(pathEncrypted) {
+		t.Fatalf("metadata infer_path = %v, want %q", response.Metadata["infer_path"], pathEncrypted)
 	}
 }
 

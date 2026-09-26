@@ -137,8 +137,10 @@ func TestConfigEmptyDocumentKeepsDefaults(t *testing.T) {
 // request reaches; getting it wrong sends catalog keys to a public endpoint that
 // rejects them.
 func TestActiveInferPathFollowsWASMPath(t *testing.T) {
-	if got := activeInferPath(DefaultConfig()); got != pathPublic {
-		t.Fatalf("activeInferPath(default) = %q, want %q", got, pathPublic)
+	// The WASM signer is embedded in the plugin, so the encrypted path is always
+	// available regardless of the wasm_path override.
+	if got := activeInferPath(DefaultConfig()); got != pathEncrypted {
+		t.Fatalf("activeInferPath(default) = %q, want %q", got, pathEncrypted)
 	}
 	withWASM := DefaultConfig()
 	withWASM.WASMPath = "/opt/qoder-auth-wasm.wasm"
@@ -147,8 +149,8 @@ func TestActiveInferPathFollowsWASMPath(t *testing.T) {
 	}
 	blank := DefaultConfig()
 	blank.WASMPath = "   "
-	if got := activeInferPath(blank); got != pathPublic {
-		t.Fatalf("activeInferPath(blank) = %q, want %q", got, pathPublic)
+	if got := activeInferPath(blank); got != pathEncrypted {
+		t.Fatalf("activeInferPath(blank) = %q, want %q", got, pathEncrypted)
 	}
 }
 
