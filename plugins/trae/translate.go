@@ -1261,8 +1261,6 @@ type openAIChoice struct {
 }
 
 // openAIDone is the terminal SSE frame.
-const openAIDone = "data: [DONE]\n\n"
-
 // TranslateSOLOStream converts a SOLO SSE body into OpenAI SSE frames. It
 // returns the frames, an error when an `event:error` frame was present, and
 // whether any upstream event was seen at all.
@@ -1299,7 +1297,9 @@ func TranslateSOLOStream(body []byte, model, completionID string, created int64)
 			Choices: []openAIChoice{{Index: 0, Delta: delta, FinishReason: finish}},
 		}
 		if encoded, err := json.Marshal(chunk); err == nil {
-			frames = append(frames, []byte("data: "+string(encoded)+"\n\n"))
+			// Bare payload: the host frames every chunk it forwards and writes the
+			// terminal event itself.
+			frames = append(frames, encoded)
 		}
 	}
 
@@ -1376,9 +1376,10 @@ func TranslateSOLOStream(body []byte, model, completionID string, created int64)
 		Usage:   openAIUsage(usage),
 	}
 	if encoded, err := json.Marshal(chunk); err == nil {
-		frames = append(frames, []byte("data: "+string(encoded)+"\n\n"))
+		frames = append(frames, encoded)
 	}
-	frames = append(frames, []byte(openAIDone))
+	// The terminal `data: [DONE]` belongs to the host, which writes it after the
+	// last forwarded chunk; emitting one here would duplicate it.
 	return frames, nil, sawEvent
 }
 

@@ -526,17 +526,21 @@ func TestStreamChunksAndEmptyResponse(t *testing.T) {
 	if errChunks != nil {
 		t.Fatalf("streamChunks: %v", errChunks)
 	}
-	// Two decoded frames plus the appended [DONE].
-	if len(chunks) != 3 {
+	// One chunk per decoded frame. No [DONE] chunk: the host writes the terminal
+	// event, and it frames every payload it forwards, so the payload here must be
+	// bare JSON — a self-framed one reaches the client as `data: data: {…}`.
+	if len(chunks) != 2 {
 		t.Fatalf("chunks = %d", len(chunks))
 	}
 	for _, chunk := range chunks {
-		if !strings.HasPrefix(string(chunk.Payload), "data: ") || !strings.HasSuffix(string(chunk.Payload), "\n\n") {
-			t.Fatalf("frame = %q", chunk.Payload)
+		payload := string(chunk.Payload)
+		if strings.HasPrefix(payload, "data:") || strings.HasSuffix(payload, "\n\n") {
+			t.Fatalf("payload must be bare JSON, got %q", payload)
 		}
-	}
-	if last := string(chunks[len(chunks)-1].Payload); last != "data: [DONE]\n\n" {
-		t.Fatalf("last frame = %q", last)
+		var decoded map[string]any
+		if errUnmarshal := json.Unmarshal(chunk.Payload, &decoded); errUnmarshal != nil {
+			t.Fatalf("payload is not JSON: %v (%q)", errUnmarshal, payload)
+		}
 	}
 
 	// A stream that ends with stop but produced nothing is an error.

@@ -63,27 +63,37 @@ func TestStreamChatChunksReEncodesFrames(t *testing.T) {
 	if errChunks != nil {
 		t.Fatalf("streamChatChunks: %v", errChunks)
 	}
-	if len(chunks) != 3 {
-		t.Fatalf("chunk count = %d, want 3", len(chunks))
+	if len(chunks) != 2 {
+		t.Fatalf("chunk count = %d, want 2", len(chunks))
 	}
 	if !strings.Contains(string(chunks[0].Payload), `"he"`) {
 		t.Fatalf("first chunk = %q", chunks[0].Payload)
 	}
-	if strings.TrimSpace(string(chunks[2].Payload)) != "data: [DONE]" {
-		t.Fatalf("last chunk = %q, want the [DONE] frame", chunks[2].Payload)
+	// Bare payloads only: the host frames them and writes the terminal event.
+	for _, chunk := range chunks {
+		if strings.HasPrefix(string(chunk.Payload), "data:") {
+			t.Fatalf("chunk must not carry its own framing: %q", chunk.Payload)
+		}
+	}
+	if strings.Contains(string(chunks[len(chunks)-1].Payload), "[DONE]") {
+		t.Fatalf("the plugin must not forward [DONE]: %q", chunks[len(chunks)-1].Payload)
 	}
 }
 
-// TestStreamChatChunksAppendsDoneWhenUpstreamOmitsIt keeps every stream
-// terminated, so a client never waits on a missing sentinel.
-func TestStreamChatChunksAppendsDoneWhenUpstreamOmitsIt(t *testing.T) {
+// TestStreamChatChunksLeavesTerminationToTheHost pins that a stream the upstream
+// never terminated still yields only its real frames: the host appends the
+// terminal event, so synthesising one here would duplicate it.
+func TestStreamChatChunksLeavesTerminationToTheHost(t *testing.T) {
 	body := "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"}}]}\n\n"
 	chunks, errChunks := streamChatChunks([]byte(body), false)
 	if errChunks != nil {
 		t.Fatalf("streamChatChunks: %v", errChunks)
 	}
-	if len(chunks) != 2 || !strings.Contains(string(chunks[1].Payload), "[DONE]") {
-		t.Fatalf("chunks = %d, want the frame plus a synthesised [DONE]", len(chunks))
+	if len(chunks) != 1 {
+		t.Fatalf("chunks = %d, want the frame alone", len(chunks))
+	}
+	if strings.Contains(string(chunks[0].Payload), "[DONE]") {
+		t.Fatalf("chunk = %q, want the upstream frame", chunks[0].Payload)
 	}
 }
 

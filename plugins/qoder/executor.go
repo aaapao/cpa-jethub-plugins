@@ -432,7 +432,6 @@ func streamChatChunks(body []byte, encrypted bool) ([]pluginapi.ExecutorStreamCh
 	}
 	scanner := &sse.Scanner{}
 	chunks := make([]pluginapi.ExecutorStreamChunk, 0, 64)
-	sawDone := false
 	for _, payload := range scanner.Feed(body) {
 		inner, errFrame := normalizeFrame(payload, encrypted)
 		if errFrame != nil {
@@ -442,17 +441,13 @@ func streamChatChunks(body []byte, encrypted bool) ([]pluginapi.ExecutorStreamCh
 			continue
 		}
 		if inner == sse.Done {
-			sawDone = true
-			chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
+			// The host writes the terminal event itself.
 			break
 		}
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(inner)})
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(inner)})
 	}
 	if len(chunks) == 0 {
 		return nil, abiboot.HTTPError("empty_upstream", http.StatusBadGateway, "Qoder 流中没有可解析的分片")
-	}
-	if !sawDone {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
 	}
 	return chunks, nil
 }

@@ -457,8 +457,16 @@ func TestTranslateSOLOStream(t *testing.T) {
 	if !strings.Contains(joined, `"prompt_tokens":11`) || !strings.Contains(joined, "reasoning_tokens") {
 		t.Fatalf("usage missing from %s", joined)
 	}
-	if !strings.HasSuffix(joined, "data: [DONE]\n\n") {
-		t.Fatalf("stream must terminate with [DONE]: %s", joined)
+	// Bare payloads, and no terminal event: the host frames every chunk it
+	// forwards and writes `data: [DONE]` itself.
+	if strings.Contains(joined, "data:") {
+		t.Fatalf("frames must not carry their own framing: %s", joined)
+	}
+	for index, frame := range frames {
+		var decoded map[string]any
+		if errUnmarshal := json.Unmarshal(frame, &decoded); errUnmarshal != nil {
+			t.Fatalf("frame %d is not JSON: %v (%s)", index, errUnmarshal, frame)
+		}
 	}
 	// The declared model must be echoed so clients see what they asked for.
 	if !strings.Contains(joined, `"model":"glm-5.2"`) {

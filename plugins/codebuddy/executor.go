@@ -741,11 +741,9 @@ func handleExecutorExecuteStream(h *abiboot.Host, raw json.RawMessage) (any, err
 
 	scanner := &sse.Scanner{}
 	chunks := make([]pluginapi.ExecutorStreamChunk, 0, 64)
-	sawDone := false
 	sawChunk := false
 	for _, payload := range scanner.Feed(response.Body) {
 		if payload == sse.Done {
-			sawDone = true
 			break
 		}
 		if parsed, ok := parseChunk(payload); ok {
@@ -759,14 +757,11 @@ func handleExecutorExecuteStream(h *abiboot.Host, raw json.RawMessage) (any, err
 				return nil, abiboot.HTTPError("SERVER", http.StatusBadGateway, "CodeBuddy: %s", detail)
 			}
 		}
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(payload)})
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(payload)})
 		sawChunk = true
 	}
 	if !sawChunk {
 		return nil, abiboot.HTTPError("empty_upstream", http.StatusBadGateway, "CodeBuddy 未返回任何流式分片")
-	}
-	if !sawDone {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
 	}
 	return executorStreamResponse{
 		Headers: http.Header{"Content-Type": []string{"text/event-stream"}},

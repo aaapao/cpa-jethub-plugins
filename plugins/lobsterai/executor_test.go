@@ -210,11 +210,13 @@ func TestConsumeUpstreamStreamNullableDeltas(t *testing.T) {
 	if !outcome.SawDone {
 		t.Fatal("SawDone = false")
 	}
-	if len(outcome.Payloads) != len(frames) {
-		t.Fatalf("payloads = %d, want %d", len(outcome.Payloads), len(frames))
+	// The terminal event is the host's, so the payload list stops at the last
+	// real frame; SawDone above records that the upstream did terminate.
+	if len(outcome.Payloads) != len(frames)-1 {
+		t.Fatalf("payloads = %d, want %d", len(outcome.Payloads), len(frames)-1)
 	}
-	if outcome.Payloads[len(outcome.Payloads)-1] != "[DONE]" {
-		t.Fatalf("[DONE] must be last, got %q", outcome.Payloads[len(outcome.Payloads)-1])
+	if outcome.Payloads[len(outcome.Payloads)-1] == "[DONE]" {
+		t.Fatal("the plugin must not forward [DONE]: the host writes it")
 	}
 	// Frames that need no rewrite are relayed byte-for-byte.
 	for index := 0; index < 4; index++ {
@@ -520,17 +522,25 @@ func TestExecutorHandlersEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("execute_stream relays frames and appends DONE", func(t *testing.T) {
+	t.Run("execute_stream relays bare payloads without a terminal event", func(t *testing.T) {
 		value, errStreamCall := handleExecutorExecuteStream(host, raw)
 		if errStreamCall != nil {
 			t.Fatalf("handleExecutorExecuteStream: %v", errStreamCall)
 		}
 		response := value.(executorStreamResponse)
-		if len(response.Chunks) != 3 {
-			t.Fatalf("chunks = %d, want 3", len(response.Chunks))
+		// The host frames each payload and writes `data: [DONE]` itself, so a
+		// chunk carrying its own framing or terminal event would be duplicated.
+		if len(response.Chunks) != 2 {
+			t.Fatalf("chunks = %d, want 2", len(response.Chunks))
 		}
-		if !strings.HasSuffix(string(response.Chunks[len(response.Chunks)-1].Payload), "[DONE]\n\n") {
-			t.Fatalf("last chunk = %q", response.Chunks[len(response.Chunks)-1].Payload)
+		for _, chunk := range response.Chunks {
+			payload := string(chunk.Payload)
+			if strings.HasPrefix(payload, "data:") || strings.Contains(payload, "[DONE]") {
+				t.Fatalf("chunk must be a bare payload, got %q", payload)
+			}
+			if !strings.HasPrefix(payload, "{") {
+				t.Fatalf("chunk = %q, want JSON", payload)
+			}
 		}
 	})
 

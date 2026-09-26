@@ -832,29 +832,20 @@ func (s *chatStream) streamChunks() ([]pluginapi.ExecutorStreamChunk, error) {
 	if !s.sawDelta && len(s.chunks) == 0 {
 		return nil, statusError(false, "empty_upstream", http.StatusBadGateway, "Cline 流中没有可解析的分片")
 	}
-	chunks := make([]pluginapi.ExecutorStreamChunk, 0, len(s.chunks)+1)
+	// The host frames every chunk it forwards (`data: %s\n\n`) and writes the
+	// terminal `data: [DONE]` itself, so a payload carrying its own framing would
+	// reach the client as `data: data: {…}` and break JSON parsing there. The
+	// upstream `[DONE]` is consumed by streamFrames as a terminator and must not
+	// be re-sent for the same reason.
+	chunks := make([]pluginapi.ExecutorStreamChunk, 0, len(s.chunks))
 	for _, chunk := range s.chunks {
 		encoded, errMarshal := json.Marshal(chunk)
 		if errMarshal != nil {
 			continue
 		}
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: encodeSSE(string(encoded))})
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: encoded})
 	}
-	// The terminal marker is ALWAYS emitted: streamFrames consumes the upstream
-	// `[DONE]` as a terminator rather than returning it as a payload, so
-	// forwarding the decoded chunks verbatim would leave the client without one.
-	chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: encodeSSE("[DONE]")})
 	return chunks, nil
-}
-
-// encodeSSE frames one payload as an SSE event.
-func encodeSSE(payload string) []byte {
-	var builder strings.Builder
-	builder.Grow(len(payload) + 8)
-	builder.WriteString("data: ")
-	builder.WriteString(payload)
-	builder.WriteString("\n\n")
-	return []byte(builder.String())
 }
 
 // completionMessage is the aggregated assistant message.

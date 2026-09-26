@@ -52,24 +52,22 @@ func parseDataLine(line string) (string, bool) {
 	return strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "), true
 }
 
-// Encode frames a payload as one SSE event.
-func Encode(payload string) []byte {
-	var b strings.Builder
-	b.Grow(len(payload) + 8)
-	b.WriteString("data: ")
-	b.WriteString(payload)
-	b.WriteString("\n\n")
-	return []byte(b.String())
+// Payload returns one stream chunk payload exactly as the host expects it: the
+// bare bytes, with no SSE framing of their own.
+//
+// The host frames every plugin chunk it forwards (`data: %s\n\n`) and writes the
+// terminal `data: [DONE]` itself. A payload that already carries a `data:`
+// prefix therefore reaches the client as `data: data: {…}`, and a client reading
+// SSE then fails to parse that frame as JSON.
+func Payload(payload string) []byte {
+	return []byte(payload)
 }
 
-// EncodeJSON marshals v and frames it as one SSE event.
-func EncodeJSON(v any) ([]byte, error) {
+// PayloadJSON marshals v into one stream chunk payload (bare, see Payload).
+func PayloadJSON(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
-	return Encode(string(raw)), nil
+	return raw, nil
 }
-
-// DoneEvent is the terminating `data: [DONE]` frame.
-func DoneEvent() []byte { return Encode(Done) }

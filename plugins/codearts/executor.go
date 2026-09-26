@@ -175,24 +175,20 @@ func handleExecutorExecuteStream(h *abiboot.Host, raw json.RawMessage) (any, err
 
 	scanner := &sse.Scanner{}
 	chunks := make([]pluginapi.ExecutorStreamChunk, 0, 64)
-	sawDone := false
 	for _, payload := range scanner.Feed(response.Body) {
 		if errStream := inspectStreamPayload(payload); errStream != nil {
 			return nil, errStream
 		}
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(payload)})
 		if payload == sse.Done {
-			sawDone = true
+			// The host writes the terminal event itself.
 			break
 		}
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(payload)})
 	}
 	if len(chunks) == 0 {
 		return nil, abiboot.HTTPError("empty_upstream", http.StatusBadGateway, "CodeArts 未返回任何流式分片")
 	}
 	chunks = rewriteDsmlStream(chunks)
-	if !sawDone {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
-	}
 	return executorStreamResponse{
 		Headers: http.Header{"Content-Type": []string{"text/event-stream"}},
 		Chunks:  chunks,
@@ -324,7 +320,7 @@ func rewriteDsmlStream(chunks []pluginapi.ExecutorStreamChunk) []pluginapi.Execu
 	out := make([]pluginapi.ExecutorStreamChunk, len(chunks))
 	copy(out, chunks)
 	for _, item := range decoded {
-		encoded, errMarshal := sse.EncodeJSON(item.chunk)
+		encoded, errMarshal := sse.PayloadJSON(item.chunk)
 		if errMarshal != nil {
 			return chunks
 		}

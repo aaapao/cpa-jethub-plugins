@@ -24,22 +24,25 @@ func sseBody(frames ...string) []byte {
 	return []byte(builder.String())
 }
 
-// decodeChunks parses emitted frames, dropping the [DONE] terminator.
+// decodeChunks parses the emitted payloads. Each one is bare JSON: the host
+// frames every chunk it forwards and appends the terminal `data: [DONE]` itself,
+// so a payload carrying its own framing would reach the client as `data: data:`.
 func decodeChunks(t *testing.T, chunks []pluginapi.ExecutorStreamChunk) []outChunk {
 	t.Helper()
 	var out []outChunk
 	for _, chunk := range chunks {
-		scanner := &sse.Scanner{}
-		for _, payload := range scanner.Feed(chunk.Payload) {
-			if strings.TrimSpace(payload) == sse.Done {
-				continue
-			}
-			var decoded outChunk
-			if errUnmarshal := json.Unmarshal([]byte(payload), &decoded); errUnmarshal != nil {
-				t.Fatalf("decode emitted frame %q: %v", payload, errUnmarshal)
-			}
-			out = append(out, decoded)
+		payload := strings.TrimSpace(string(chunk.Payload))
+		if strings.HasPrefix(payload, "data:") {
+			t.Fatalf("chunk must not carry its own framing: %q", payload)
 		}
+		if payload == "" || payload == sse.Done {
+			continue
+		}
+		var decoded outChunk
+		if errUnmarshal := json.Unmarshal([]byte(payload), &decoded); errUnmarshal != nil {
+			t.Fatalf("decode emitted frame %q: %v", payload, errUnmarshal)
+		}
+		out = append(out, decoded)
 	}
 	return out
 }
@@ -287,10 +290,12 @@ func TestStreamFinishReasonMapping(t *testing.T) {
 			if got := finalReason(t, chunks); got != testCase.want {
 				t.Errorf("finish_reason = %q, want %q", got, testCase.want)
 			}
-			// Every stream ends with `data: [DONE]`.
-			last := chunks[len(chunks)-1].Payload
-			if !strings.Contains(string(last), sse.Done) {
-				t.Errorf("the stream does not end with [DONE]: %q", last)
+			// The terminal event is the host's to write, so the plugin must not
+			// send one: its last chunk is the final data frame.
+			for _, chunk := range chunks {
+				if strings.Contains(string(chunk.Payload), sse.Done) {
+					t.Errorf("the plugin must not forward [DONE]: %q", chunk.Payload)
+				}
 			}
 		})
 	}

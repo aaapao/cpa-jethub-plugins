@@ -285,10 +285,7 @@ func handleExecutorExecuteStream(h *abiboot.Host, raw json.RawMessage) (any, err
 
 	chunks := make([]pluginapi.ExecutorStreamChunk, 0, len(outcome.Payloads)+1)
 	for _, payload := range outcome.Payloads {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(payload)})
-	}
-	if !outcome.SawDone {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(payload)})
 	}
 	return executorStreamResponse{
 		Headers: http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -582,9 +579,8 @@ func consumeUpstreamStream(body []byte) (*streamOutcome, error) {
 		}
 		outcome.Payloads = append(outcome.Payloads, entry.payload)
 	}
-	if outcome.SawDone {
-		outcome.Payloads = append(outcome.Payloads, sse.Done)
-	}
+	// The terminal `[DONE]` is the host's to write: it follows every forwarded
+	// chunk, so forwarding one here would duplicate it.
 	return outcome, nil
 }
 

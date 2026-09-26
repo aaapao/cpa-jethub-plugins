@@ -153,7 +153,7 @@ func TestAggregateCompletionLeavesPlainTextAlone(t *testing.T) {
 
 func streamChunk(t *testing.T, delta openai.Delta, finish *string) pluginapi.ExecutorStreamChunk {
 	t.Helper()
-	payload, errMarshal := sse.EncodeJSON(openai.Chunk{
+	payload, errMarshal := sse.PayloadJSON(openai.Chunk{
 		ID:      "chunk-1",
 		Object:  "chat.completion.chunk",
 		Model:   "deepseek-v4-flash",

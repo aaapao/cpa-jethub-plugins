@@ -322,19 +322,17 @@ func streamFrames(body []byte) ([]pluginapi.ExecutorStreamChunk, bool, error) {
 			continue
 		}
 		if trimmed == sse.Done {
+			// The host writes the terminal event; forwarding this one would only
+			// duplicate it.
 			sawDone = true
-			chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
 			break
 		}
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(trimmed)})
+		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(trimmed)})
 	}
 	if len(chunks) == 0 {
 		return nil, false, abiboot.HTTPError("empty_upstream", http.StatusBadGateway, "Loomy 流中没有可解析的分片")
 	}
 	truncated := !sawDone && !sawFinishReason(payloads)
-	if !sawDone {
-		chunks = append(chunks, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
-	}
 	return chunks, truncated, nil
 }
 

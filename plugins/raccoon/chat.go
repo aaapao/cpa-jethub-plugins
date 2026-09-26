@@ -551,7 +551,7 @@ func (s *chatStream) emit(delta outDelta) {
 	if errMarshal != nil {
 		return
 	}
-	s.frames = append(s.frames, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(string(encoded))})
+	s.frames = append(s.frames, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(string(encoded))})
 }
 
 // reasoningOf resolves `delta.reasoning_content ?? delta.reasoning`.
@@ -667,9 +667,9 @@ func (s *chatStream) chunks() ([]pluginapi.ExecutorStreamChunk, error) {
 		Usage:   s.usage,
 	}
 	if encoded, errMarshal := json.Marshal(final); errMarshal == nil {
-		s.frames = append(s.frames, pluginapi.ExecutorStreamChunk{Payload: sse.Encode(string(encoded))})
+		s.frames = append(s.frames, pluginapi.ExecutorStreamChunk{Payload: sse.Payload(string(encoded))})
 	}
-	s.frames = append(s.frames, pluginapi.ExecutorStreamChunk{Payload: sse.DoneEvent()})
+	// No [DONE] chunk: the host writes the terminal event itself.
 	return s.frames, nil
 }
 

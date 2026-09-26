@@ -137,13 +137,16 @@ func TestExecuteStreamReturnsFrames(t *testing.T) {
 	if got := response.Headers.Get("Content-Type"); got != "text/event-stream" {
 		t.Fatalf("Content-Type = %q", got)
 	}
-	// Three upstream frames; the [DONE] marker is not re-emitted as a chunk
-	// because it terminates the frame list.
-	if len(response.Chunks) != 3 {
+	// One chunk per upstream frame, each a bare JSON payload: the host frames it
+	// and writes the terminal [DONE] itself, so re-framing here would double the
+	// `data:` prefix.
+	if len(response.Chunks) != 2 {
 		t.Fatalf("chunks = %d", len(response.Chunks))
 	}
-	if last := string(response.Chunks[len(response.Chunks)-1].Payload); last != "data: [DONE]\n\n" {
-		t.Fatalf("last chunk = %q", last)
+	for _, chunk := range response.Chunks {
+		if strings.HasPrefix(string(chunk.Payload), "data:") {
+			t.Fatalf("chunk must not carry its own framing: %q", chunk.Payload)
+		}
 	}
 	if !strings.Contains(string(response.Chunks[0].Payload), `"content":"hello"`) {
 		t.Fatalf("first chunk = %q", response.Chunks[0].Payload)

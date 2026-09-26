@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/collegeming/cpa-jethub-plugins/internal/abiboot"
-	"github.com/collegeming/cpa-jethub-plugins/internal/jethub/sse"
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
 )
 
@@ -291,19 +290,22 @@ func TestExecuteStreamFramesAndTerminator(t *testing.T) {
 	if got := response.Headers.Get("Content-Type"); got != "text/event-stream" {
 		t.Fatalf("Content-Type = %q, want text/event-stream", got)
 	}
-	if len(response.Chunks) != 2 {
-		t.Fatalf("chunks = %d, want the payload plus a terminator", len(response.Chunks))
+	// One payload, bare: the host frames it and writes the terminal `data:
+	// [DONE]` itself, so a terminator chunk here would be duplicated.
+	if len(response.Chunks) != 1 {
+		t.Fatalf("chunks = %d, want the payload alone", len(response.Chunks))
 	}
 	// A stream without [DONE] and without a finish_reason is truncated, and the
-	// truncation is reported instead of being hidden by the terminator.
+	// truncation is reported instead of being hidden by a terminator.
 	if len(fake.logs) != 1 || !strings.Contains(fake.logs[0], "未正常结束") {
 		t.Fatalf("logs = %#v, want one truncation warning", fake.logs)
 	}
-	if !strings.Contains(string(response.Chunks[0].Payload), `"content":"hi"`) {
-		t.Fatalf("chunk = %s, want the upstream frame", response.Chunks[0].Payload)
+	payload := string(response.Chunks[0].Payload)
+	if strings.HasPrefix(payload, "data:") {
+		t.Fatalf("payload must not carry its own framing: %s", payload)
 	}
-	if !strings.Contains(string(response.Chunks[1].Payload), sse.Done) {
-		t.Fatalf("terminator = %s, want [DONE]", response.Chunks[1].Payload)
+	if !strings.Contains(payload, `"content":"hi"`) {
+		t.Fatalf("chunk = %s, want the upstream frame", payload)
 	}
 }
 
