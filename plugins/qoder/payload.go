@@ -197,9 +197,12 @@ func inferAskFromRequest(request pluginapi.ExecutorRequest, credential *Credenti
 	if errParse != nil {
 		return inferAsk{}, errParse
 	}
-	model := request.Model
-	if strings.TrimSpace(wire.Model) != "" {
-		model = wire.Model
+	// Use the host-resolved catalog key (request.Model), not the client alias
+	// (wire.Model): the encrypted endpoint expects `qfmodel`, not
+	// `Qwen3.8-Flash-Next-Oauth`, and the WASM signs whatever we pass here.
+	model := strings.TrimSpace(request.Model)
+	if model == "" {
+		model = strings.TrimSpace(wire.Model)
 	}
 	if strings.TrimSpace(model) == "" {
 		return inferAsk{}, abiboot.HTTPError("invalid_request", http.StatusBadRequest, "请求缺少 model 字段")
