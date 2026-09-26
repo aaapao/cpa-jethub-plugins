@@ -60,3 +60,21 @@ func TestNewHostWithoutAuthMaterialLeavesIncomingEmpty(t *testing.T) {
 		t.Errorf("Incoming = %s, want empty", host.Incoming)
 	}
 }
+
+// A management route reaches the credential through host.auth.get, so the file
+// has to be remembered there too; the first known file wins because every save
+// in one invocation targets the same credential.
+func TestRememberIncomingKeepsFirstKnownFile(t *testing.T) {
+	host := &Host{}
+	host.rememberIncoming([]byte(`{"priority":6}`))
+	host.rememberIncoming([]byte(`{"priority":1}`))
+	if string(host.Incoming) != `{"priority":6}` {
+		t.Errorf("Incoming = %s, want the first file", host.Incoming)
+	}
+
+	host.rememberIncoming(nil)
+	host.rememberIncoming([]byte("  "))
+	if string(host.Incoming) != `{"priority":6}` {
+		t.Errorf("Incoming = %s, want the first file after empty inputs", host.Incoming)
+	}
+}

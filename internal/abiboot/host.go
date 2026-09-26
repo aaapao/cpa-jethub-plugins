@@ -51,11 +51,10 @@ func NewHost(raw json.RawMessage) *Host {
 	if config.AuthDir == "" && config.ProxyURL == "" && len(config.ExcludedModels) == 0 {
 		config = probe.HostUpper
 	}
-	incoming := probe.RawJSON
-	if len(bytes.TrimSpace(incoming)) == 0 {
-		incoming = probe.StorageJSON
-	}
-	return &Host{CallbackID: probe.HostCallbackID, PluginID: probe.PluginID, Config: config, Incoming: incoming}
+	host := &Host{CallbackID: probe.HostCallbackID, PluginID: probe.PluginID, Config: config}
+	host.rememberIncoming(probe.RawJSON)
+	host.rememberIncoming(probe.StorageJSON)
+	return host
 }
 
 // HTTPDoRequest is the wire shape of host.http.do. The host decodes a flat
@@ -180,13 +179,29 @@ func (h *Host) SaveAuth(name string, storage json.RawMessage) (*pluginapi.HostAu
 }
 
 // GetAuth reads a previously stored auth file by its auth index.
+//
+// The payload is also remembered as this invocation's Incoming file, because
+// management routes reach a credential this way rather than through a parse or
+// refresh callback: a page that reads a quota and then persists a renewed token
+// must still merge into the file the host is holding.
 func (h *Host) GetAuth(authIndex string) (*pluginapi.HostAuthGetResponse, error) {
 	payload := pluginapi.HostAuthGetRequest{AuthIndex: authIndex}
 	out := &pluginapi.HostAuthGetResponse{}
 	if err := HostCallInto(pluginabi.MethodHostAuthGet, payload, out); err != nil {
 		return nil, err
 	}
+	h.rememberIncoming(out.JSON)
 	return out, nil
+}
+
+// rememberIncoming records the auth file the host is holding when the
+// invocation did not already carry it. The first known file wins: every save in
+// one invocation targets the same credential.
+func (h *Host) rememberIncoming(raw json.RawMessage) {
+	if h == nil || len(bytes.TrimSpace(raw)) == 0 || len(bytes.TrimSpace(h.Incoming)) != 0 {
+		return
+	}
+	h.Incoming = append(json.RawMessage(nil), raw...)
 }
 
 // ListAuth enumerates every credential the host currently tracks. The list is
