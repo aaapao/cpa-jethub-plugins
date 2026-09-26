@@ -78,3 +78,21 @@ func TestRememberIncomingKeepsFirstKnownFile(t *testing.T) {
 		t.Errorf("Incoming = %s, want the first file after empty inputs", host.Incoming)
 	}
 }
+
+// The quota and model structs tag their storage member snake_case while the auth
+// structs leave it under the Go field name; both spellings reach SaveAuth.
+func TestNewHostAcceptsSnakeCaseStorage(t *testing.T) {
+	raw := []byte(`{"priority":4,"refresh_token":"token"}`)
+	payload, errMarshal := json.Marshal(struct {
+		AuthIndex   string `json:"auth_index"`
+		StorageJSON []byte `json:"storage_json,omitempty"`
+	}{AuthIndex: "auth-1", StorageJSON: raw})
+	if errMarshal != nil {
+		t.Fatalf("marshal payload: %v", errMarshal)
+	}
+
+	host := NewHost(payload)
+	if string(host.Incoming) != string(raw) {
+		t.Errorf("Incoming = %s, want %s", host.Incoming, raw)
+	}
+}

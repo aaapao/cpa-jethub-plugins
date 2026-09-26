@@ -38,11 +38,14 @@ func NewHost(raw json.RawMessage) *Host {
 		PluginID       string                      `json:"plugin_id"`
 		HostUpper      pluginapi.HostConfigSummary `json:"Host"`
 		HostLower      pluginapi.HostConfigSummary `json:"host"`
-		// Both are []byte on the wire, so encoding/json hands them back already
-		// base64-decoded. RawJSON is the parse path, StorageJSON the refresh and
-		// execution paths; either one is the file the host is holding.
-		RawJSON     []byte `json:"RawJSON"`
-		StorageJSON []byte `json:"StorageJSON"`
+		// The auth structs carry no JSON tags, so their members arrive under the
+		// Go field names; the quota and model structs tag the same members
+		// snake_case. All spellings are []byte on the wire, so encoding/json
+		// hands each one back already base64-decoded.
+		RawJSON          []byte `json:"RawJSON"`
+		RawJSONSnake     []byte `json:"raw_json"`
+		StorageJSON      []byte `json:"StorageJSON"`
+		StorageJSONSnake []byte `json:"storage_json"`
 	}
 	if err := json.Unmarshal(raw, &probe); err != nil {
 		return &Host{}
@@ -53,7 +56,9 @@ func NewHost(raw json.RawMessage) *Host {
 	}
 	host := &Host{CallbackID: probe.HostCallbackID, PluginID: probe.PluginID, Config: config}
 	host.rememberIncoming(probe.RawJSON)
+	host.rememberIncoming(probe.RawJSONSnake)
 	host.rememberIncoming(probe.StorageJSON)
+	host.rememberIncoming(probe.StorageJSONSnake)
 	return host
 }
 
