@@ -6,13 +6,14 @@
 
 ## 1. 下载插件
 
-从 [GitHub Release](https://github.com/collegeming/cpa-jethub-plugins/releases) 下载最新版本（当前 `v0.3.0`）：
+从 [GitHub Release](https://github.com/collegeming/cpa-jethub-plugins/releases) 取**最新发布版**（Releases 页面置顶的那个）。命令里的 `<版本>` 换成实际 tag（去掉前导 `v`，如 tag 为 `v0.3.1` 则 `VERSION=0.3.1`）：
 
 ```bash
 # 下载所有插件（以 linux/amd64 为例）
-BASE="https://github.com/collegeming/cpa-jethub-plugins/releases/download/v0.3.0"
+VERSION=<版本>          # 例如 0.3.1；以 Releases 页面为准
+BASE="https://github.com/collegeming/cpa-jethub-plugins/releases/download/v${VERSION}"
 for p in cline codearts codebuddy codebuddy-intl hub lobsterai loomy qoder raccoon trae workbuddy workbuddy-cn; do
-  curl -LO "$BASE/${p}_0.3.0_linux_amd64.zip"
+  curl -LO "$BASE/${p}_${VERSION}_linux_amd64.zip"
 done
 # 校验
 curl -LO "$BASE/checksums.txt"
@@ -57,7 +58,7 @@ CPA 配置文件 `config.yaml` 中 `plugins.dir` 指定的路径。常见位置�
 PLUGIN_DIR=/data/CLIProxyAPI/plugins
 
 for p in cline codearts codebuddy hub lobsterai loomy qoder raccoon trae; do
-  unzip -o ${p}_0.3.0_linux_amd64.zip -d ${PLUGIN_DIR}/linux/amd64/
+  unzip -o ${p}_${VERSION}_linux_amd64.zip -d ${PLUGIN_DIR}/linux/amd64/
 done
 ```
 
@@ -378,18 +379,18 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 | 问题 | 原因 | 解决 |
 |---|---|---|
 | 模型列表出现 `<账号ID>/<模型名>` | `model_prefix` 未设为 `false` | 在 `plugins.configs.<渠道>.model_prefix: false` |
-| 凭据优先级续期后丢失 | 插件版本过旧 | 使用 v0.3.0+ |
-| 流式响应 `data: data:` 双重前缀 | 插件版本过旧 | 使用 v0.3.0+ |
-| qoder 推理返回 `Unsupported model` | 走了公开端点 | 使用 v0.3.0+（内嵌 WASM，自动走加密端点） |
+| 凭据优先级续期后丢失 | 插件版本过旧 | 升级到含凭据字段保留修复的版本（v0.3.0 引入） |
+| 流式响应 `data: data:` 双重前缀 | 插件版本过旧 | 升级到含流式分片裸 payload 修复的版本（v0.3.0 引入） |
+| qoder 推理返回 `Unsupported model` | 走了公开端点 | 升级到包含内嵌 WASM 的版本（自动走加密端点） |
 | qoder 推理返回 `quota exceeded` | 账号 0 额度 | 免费模型（qfmodel/qmodel_38max）可用；或充值 |
-| cline 续期后 token 过期 | 有效期未随新 token 更新 | 使用 v0.3.0+ |
+| cline 续期后 token 过期 | 有效期未随新 token 更新 | 升级到含 JWT exp 修复的版本（v0.3.0 引入） |
 | 插件登录回调不通 | 容器端口未映射 | 确保 `callback_port` 映射到宿主机 `0.0.0.0` |
 | 别名模型调用返回 `model not found` | 上游模型名不匹配 | 检查 `oauth-model-alias` 中的 `name` 是否与上游一致 |
 | qoder 每日领取显示「无可领取活动」 | 未配置设备身份 | 配置 `machine_token_path` 指向官方客户端的 machine_token.json |
 | qoder 凭证反复失效（重登录后几小时又 401） | 会话被风控作废（自造设备身份易触发） | 配置 `machine_token_path` 复用官方客户端设备身份；避免与 IDE 频繁交替登录 |
-| codearts 报 `Message role cannot empty`（HTTP 500） | 上游不认 OpenAI 的 `developer` 角色 | 使用 v0.3.1+（插件把 developer 归一为语义等价的 system） |
-| lobsterai 报 `角色信息不正确`（HTTP 502） | 同上 | 使用 v0.3.1+ |
-| 客户端（如 DSH）把系统提示词发成 `developer` 角色时的通用说明 | 部分上游只认 system | 使用 v0.3.1+；全部插件已在请求侧把 developer 归一为 system |
+| codearts 报 `Message role cannot empty`（HTTP 500） | 上游不认 OpenAI 的 `developer` 角色 | 升级到含 developer 角色归一的版本（v0.3.1 引入） |
+| lobsterai 报 `角色信息不正确`（HTTP 502） | 同上 | 同上 |
+| 客户端（如 DSH）把系统提示词发成 `developer` 角色时的通用说明 | 部分上游只认 system | 全部插件已在请求侧把 developer 归一为 system（v0.3.1 引入） |
 
 ---
 
@@ -397,7 +398,7 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 
 ```bash
 # 下载新版本 zip，解压覆盖，重启
-unzip -o <插件>_0.3.0_linux_amd64.zip -d <插件目录>/linux/amd64/
+unzip -o <插件>_<版本>_linux_amd64.zip -d <插件目录>/linux/amd64/
 podman restart cli-proxy-api
 ```
 
@@ -423,7 +424,7 @@ export GOSUMDB=off
 bash scripts/build.sh        # 产物在 dist/linux/amd64/
 
 # 打包发布
-VERSION=0.3.0 bash scripts/release.sh --skip-build
+VERSION=<版本> bash scripts/release.sh --skip-build
 ```
 
 交叉编译：`GOOS=darwin GOARCH=arm64 bash scripts/build.sh`（Apple Silicon）。
