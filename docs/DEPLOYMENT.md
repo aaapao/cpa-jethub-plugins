@@ -6,13 +6,13 @@
 
 ## 1. 下载插件
 
-从 [GitHub Release](https://github.com/collegeming/cpa-jethub-plugins/releases) 下载最新版本（当前 `v0.2.0`）：
+从 [GitHub Release](https://github.com/collegeming/cpa-jethub-plugins/releases) 下载最新版本（当前 `v0.3.0`）：
 
 ```bash
 # 下载所有插件（以 linux/amd64 为例）
-BASE="https://github.com/collegeming/cpa-jethub-plugins/releases/download/v0.2.0"
+BASE="https://github.com/collegeming/cpa-jethub-plugins/releases/download/v0.3.0"
 for p in cline codearts codebuddy codebuddy-intl hub lobsterai loomy qoder raccoon trae workbuddy workbuddy-cn; do
-  curl -LO "$BASE/${p}_0.2.0_linux_amd64.zip"
+  curl -LO "$BASE/${p}_0.3.0_linux_amd64.zip"
 done
 # 校验
 curl -LO "$BASE/checksums.txt"
@@ -57,7 +57,7 @@ CPA 配置文件 `config.yaml` 中 `plugins.dir` 指定的路径。常见位置�
 PLUGIN_DIR=/data/CLIProxyAPI/plugins
 
 for p in cline codearts codebuddy hub lobsterai loomy qoder raccoon trae; do
-  unzip -o ${p}_0.2.0_linux_amd64.zip -d ${PLUGIN_DIR}/linux/amd64/
+  unzip -o ${p}_0.3.0_linux_amd64.zip -d ${PLUGIN_DIR}/linux/amd64/
 done
 ```
 
@@ -120,6 +120,8 @@ plugins:
     qoder:
       enabled: true
       model_prefix: false
+      region: qoder-cn              # `qoder`=国际版；`qoder-cn`=国内版
+      machine_token_path: /CLIProxyAPI/auths/machine_token.json  # 官方客户端设备身份（可选）
     raccoon:
       enabled: true
       model_prefix: false
@@ -148,6 +150,27 @@ plugins:
 | trae | 回调端口登录 | `/v0/resource/plugins/trae/login` |
 
 在浏览器中打开管理面板（CPAMP），进入「插件管理」→ 对应渠道 → 「登录」，按页面提示完成授权。
+
+#### Qoder 的两个版本（`region`）
+
+| | 国际版 `qoder` | 国内版 `qoder-cn` |
+|---|---|---|
+| 认证站点 | qoder.com | qoder.cn |
+| clientId | `e883ade2-…` | `732aef47-…`（不同！） |
+| 推理 | 加密端点（内嵌 WASM） | 加密端点（**无公开端点**） |
+| 模型目录 | 17 条 | 14 条（独有 `q37fmodel`/`gm51model`，`mmodel`=MiniMax-M2.7） |
+| 免费模型 | `qfmodel`、`qmodel_38max` | 同 |
+
+#### 设备身份（machine_token，强烈建议配置）
+
+Qoder 服务端要求请求携带**官方客户端的设备身份**（`Cosy-MachineToken` + `Cosy-MachineType` 成对出现），否则：积分页看不到每日领取活动、推理会话更容易被风控作废。
+
+设备身份来自本机 Qoder IDE 的 `machine_token.json`（由官方 `runtime-info` 生成，插件无法自造）：
+
+- Windows：`%APPDATA%\Qoder\SharedClientCache\cache\machine_token.json`
+- macOS：`~/Library/Application Support/Qoder/SharedClientCache/cache/machine_token.json`
+
+把它复制到 CPA 的 `auths/` 目录（容器内路径 `/CLIProxyAPI/auths/` 或 `/root/.cli-proxy-api/`，按挂载为准）并配置 `machine_token_path`。该文件与账号无关（设备级），**可跨机器复用**，旧文件也依然有效。
 
 ### 3.3 配置模型排除（oauth-excluded-models）
 
@@ -286,7 +309,7 @@ for pattern, p in prio.items():
 "
 ```
 
-> **注意**：插件自动续期时会重写凭据文件。v0.2.0+ 的插件已修复为保留 `priority` 等宿主托管字段，无需重复设置。
+> **注意**：插件自动续期时会重写凭据文件。v0.3.0+ 的插件已修复为保留 `priority` 等宿主托管字段，无需重复设置。
 
 ---
 
@@ -355,13 +378,15 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 | 问题 | 原因 | 解决 |
 |---|---|---|
 | 模型列表出现 `<账号ID>/<模型名>` | `model_prefix` 未设为 `false` | 在 `plugins.configs.<渠道>.model_prefix: false` |
-| 凭据优先级续期后丢失 | 插件版本过旧 | 使用 v0.2.0+ |
-| 流式响应 `data: data:` 双重前缀 | 插件版本过旧 | 使用 v0.2.0+ |
-| qoder 推理返回 `Unsupported model` | 走了公开端点 | 使用 v0.2.0+（内嵌 WASM，自动走加密端点） |
+| 凭据优先级续期后丢失 | 插件版本过旧 | 使用 v0.3.0+ |
+| 流式响应 `data: data:` 双重前缀 | 插件版本过旧 | 使用 v0.3.0+ |
+| qoder 推理返回 `Unsupported model` | 走了公开端点 | 使用 v0.3.0+（内嵌 WASM，自动走加密端点） |
 | qoder 推理返回 `quota exceeded` | 账号 0 额度 | 免费模型（qfmodel/qmodel_38max）可用；或充值 |
-| cline 续期后 token 过期 | 有效期未随新 token 更新 | 使用 v0.2.0+ |
+| cline 续期后 token 过期 | 有效期未随新 token 更新 | 使用 v0.3.0+ |
 | 插件登录回调不通 | 容器端口未映射 | 确保 `callback_port` 映射到宿主机 `0.0.0.0` |
 | 别名模型调用返回 `model not found` | 上游模型名不匹配 | 检查 `oauth-model-alias` 中的 `name` 是否与上游一致 |
+| qoder 每日领取显示「无可领取活动」 | 未配置设备身份 | 配置 `machine_token_path` 指向官方客户端的 machine_token.json |
+| qoder 凭证反复失效（重登录后几小时又 401） | 会话被风控作废（自造设备身份易触发） | 配置 `machine_token_path` 复用官方客户端设备身份；避免与 IDE 频繁交替登录 |
 
 ---
 
