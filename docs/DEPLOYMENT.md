@@ -359,7 +359,7 @@ python3 -c "import hashlib,sys; print(hashlib.sha256(b'cli-proxy-api:caller-scop
 
    - 预期结果：`"policy_count"` 等于策略条数，`"last_error"` 为空；`"version"` 见步骤 4 的说明。
 4. 确认插件版本声明了跨优先级档的调度能力（`scheduler_across_priorities`）。
-   - 预期结果：`status` 的 `version` 为 `0.0.5-cpamp-v3` 或更高。该标识对应上游 `v0.0.5` 加两处本地补丁：配置页支持 CPAMC 的 `enc::v2::` 会话（否则页面恒提示"未找到可复用的 CPAMC 会话"）、`capabilities.scheduler_across_priorities: true`，并让 `Pick` 在策略过滤后的允许集合内自行按"最高档 + 档内轮询"选择（与 CPA 原生档位语义一致）。
+   - 预期结果：`status` 的 `version` 为 `0.0.5-cpamp-v3` 或更高。该标识对应上游 `v0.0.5` 加两处本地补丁：配置页支持 CPAMC 的 `enc::v2::` 会话（否则页面恒提示"未找到可复用的 CPAMC 会话"）、`capabilities.scheduler_across_priorities: true`，并让 `Pick` 在策略过滤后的允许集合内自行按"最高档 + 档内轮询"选择（与 CPA 原生档位语义一致）。补丁与构建步骤见仓库的 `patches/key-provider-access/`。
    - 看不到该版本时先不要继续：CPA 默认只把**最高优先级档**的凭据交给调度插件，策略过滤发生在裁剪之后。Key 允许的渠道处于低档、被拒绝的渠道占更高档时，请求会返回 403 `no allowed upstream profile is available for this API key`——策略本身没错，是候选集在策略生效前就被裁掉了。
 5. 写策略文件并使其生效。
 
