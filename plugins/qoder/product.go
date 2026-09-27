@@ -147,19 +147,62 @@ var qoderGlobal = product{
 //     OpenAPI/gateway domain;
 //   - both sites share one device-flow client id.
 var qoderCN = product{
-	ID:                   RegionCN,
-	Site:                 "cn",
-	Display:              "Qoder (国内版)",
-	AuthBase:             "https://qoder.cn",
-	OpenAPIBase:          "https://openapi.qoder.com.cn",
-	InferBase:            "https://gateway.qoder.com.cn",
-	EncryptedInferBase:   "https://gateway.qoder.com.cn",
-	ClientID:             "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb",
-	TestClientID:         "e93fe488-5778-4c35-a6fc-0f54ed7b3139",
-	SessionType:          "qoder_work",
+	ID:          RegionCN,
+	Site:        "cn",
+	Display:     "Qoder (国内版)",
+	AuthBase:    "https://qoder.cn",
+	OpenAPIBase: "https://openapi.qoder.com.cn",
+	// CN 的公开 OpenAI 兼容端点未部署（/model/v1/chat/completions 实测 503），
+	// 推理只走加密端点；两个 Infer 字段同值仅表示「无独立公开端点」。
+	InferBase:          "https://gateway.qoder.com.cn",
+	EncryptedInferBase: "https://gateway.qoder.com.cn",
+	// CN 的 clientId 与国际版不同（国际版两个 id 在 CN 客户端里命中 0 次），
+	// prod 与 test 同值；来源：CN asar 的 authClientIds.prod，参考项目
+	// 2026-09-27 已实测登录闭环通过。
+	ClientID:     "732aef47-9cf2-46a2-95fe-4cebb5d0d1fa",
+	TestClientID: "732aef47-9cf2-46a2-95fe-4cebb5d0d1fa",
+	// 推理载荷用默认 `qodercli`；`qoder_work` 只出现在 CN 客户端的
+	// `--ide-type`，与推理无关。
+	SessionType:          "qodercli",
 	UserAgentPrefix:      "qoder",
 	DefaultCredentialRef: "QODER_CN_ACCESS_TOKEN",
-	ModelCatalog:         qoderModelCatalog,
+	ModelCatalog:         qoderCNModelCatalog,
+}
+
+// qoderCNModelCatalog is the CN catalog: 14 entries. The CN endpoint does not
+// serve five international entries (ultimate/performance/efficient/smodel/
+// cmodel) and adds two of its own (q37fmodel/gm51model); `mmodel` is
+// MiniMax-M2.7 here. Context windows and price factors are calibrated against
+// the live catalog once the first credential logs in — the international
+// numbers are kept as placeholders where the reference has not measured CN.
+var qoderCNModelCatalog = []catalogModel{
+	{Key: "auto", Display: "Auto", ContextWindow: 200_000, SupportsImage: true, PriceFactor: float64Ptr(0.5)},
+	{Key: "qmodel_38max", Display: "Qwen3.8-Max", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.2), Efforts: []string{"xhigh", "low", "medium"}},
+	{Key: "qfmodel", Display: "Qwen3.8-Flash", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0), Efforts: []string{"xhigh", "low", "medium"}},
+	{Key: "q37fmodel", Display: "Qwen3.7-Flash", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.1)},
+	{Key: "qmodel_latest", Display: "Qwen3.7-Max", ContextWindow: 1_000_000, SupportsImage: true, SupportsThinking: false,
+		PriceFactor: float64Ptr(0.1)},
+	{Key: "qmodel", Display: "Qwen3.7-Plus", ContextWindow: 1_000_000, SupportsImage: true, SupportsThinking: false,
+		PriceFactor: float64Ptr(0.04)},
+	{Key: "kmodel_latest", Display: "Kimi-K3", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: false,
+		PriceFactor: float64Ptr(1.4), Efforts: []string{"high", "low", "max"}},
+	{Key: "kmodel", Display: "Kimi-K2.8-Preview", ContextWindow: 200_000, SupportsImage: true, SupportsThinking: false,
+		PriceFactor: float64Ptr(0.8), Efforts: []string{"high", "low", "max"}},
+	{Key: "gmodel", Display: "GLM-5.3", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.8), Efforts: []string{"high", "low", "max"}},
+	{Key: "gfmodel", Display: "GLM-5.3-Flash", ContextWindow: 1_000_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.1), Efforts: []string{"high", "max"}},
+	{Key: "gm51model", Display: "GLM-5.2", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.8)},
+	{Key: "dmodel", Display: "DeepSeek-V4-Pro", ContextWindow: 96_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(2), Efforts: []string{"high", "max"}},
+	{Key: "dfmodel", Display: "DeepSeek-Flash", ContextWindow: 180_000, SupportsImage: true, SupportsThinking: true,
+		PriceFactor: float64Ptr(0.5), Efforts: []string{"high", "max", "low"}},
+	{Key: "mmodel", Display: "MiniMax-M2.7", ContextWindow: 180_000, SupportsImage: false, SupportsThinking: false,
+		PriceFactor: float64Ptr(0.2)},
 }
 
 // sharedClientMetadata is the identical `clientMetadata` of both products

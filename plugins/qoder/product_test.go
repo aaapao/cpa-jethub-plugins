@@ -117,11 +117,16 @@ func TestRegionSelectionPicksTheRightHosts(t *testing.T) {
 	if cn.InferBase != "https://gateway.qoder.com.cn" || cn.EncryptedInferBase != "https://gateway.qoder.com.cn" {
 		t.Fatalf("CN must use one gateway host for both paths: %#v", cn)
 	}
-	if cn.SessionType != "qoder_work" || global.SessionType != "qodercli" {
+	// The inference payload uses the default `qodercli` on BOTH sites;
+	// `qoder_work` belongs to the CN client's `--ide-type`, not inference.
+	if cn.SessionType != "qodercli" || global.SessionType != "qodercli" {
 		t.Fatalf("session types drifted: global=%q cn=%q", global.SessionType, cn.SessionType)
 	}
-	if cn.ClientID != global.ClientID {
-		t.Fatal("both sites share the device-flow client id")
+	// The CN device-flow client id differs from the international one (the
+	// international ids appear 0 times in the CN client); prod and test share
+	// the same value there.
+	if cn.ClientID != "732aef47-9cf2-46a2-95fe-4cebb5d0d1fa" {
+		t.Fatalf("CN client id = %q, want the CN asar value", cn.ClientID)
 	}
 }
 
@@ -151,9 +156,21 @@ func TestCatalogKeysAreTheMeasuredTable(t *testing.T) {
 			t.Errorf("catalog[%d] = %q, want %q", index, p.ModelCatalog[index].Key, key)
 		}
 	}
-	// Both sites publish the same table (`qoder-product.ts:337`, `:395`).
-	if len(productByID(string(RegionCN)).ModelCatalog) != len(want) {
-		t.Fatal("the CN site must publish the same catalog table")
+	// The CN catalog is its own 14-entry table: no ultimate/performance/
+	// efficient/smodel/cmodel, plus q37fmodel and gm51model.
+	cnWant := []string{
+		"auto", "qmodel_38max", "qfmodel", "q37fmodel", "qmodel_latest",
+		"qmodel", "kmodel_latest", "kmodel", "gmodel", "gfmodel", "gm51model",
+		"dmodel", "dfmodel", "mmodel",
+	}
+	cn := productByID(string(RegionCN))
+	if len(cn.ModelCatalog) != len(cnWant) {
+		t.Fatalf("CN catalog has %d entries, want %d", len(cn.ModelCatalog), len(cnWant))
+	}
+	for index, key := range cnWant {
+		if cn.ModelCatalog[index].Key != key {
+			t.Errorf("CN catalog[%d] = %q, want %q", index, cn.ModelCatalog[index].Key, key)
+		}
 	}
 }
 

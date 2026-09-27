@@ -590,8 +590,10 @@ func TestInferAskUsesTheCNSessionType(t *testing.T) {
 	if errAsk != nil {
 		t.Fatalf("inferAskFromRequest: %v", errAsk)
 	}
-	if ask.SessionType != "qoder_work" {
-		t.Fatalf("SessionType = %q, want qoder_work on the CN site", ask.SessionType)
+	// CN inference rides the default session type; `qoder_work` belongs to the
+	// CN client's `--ide-type`, not the inference payload.
+	if ask.SessionType != "qodercli" {
+		t.Fatalf("SessionType = %q, want qodercli on the CN site", ask.SessionType)
 	}
 	cfg.SessionType = "override"
 	overridden, _ := inferAskFromRequest(request, &Credential{AccessToken: "tok"}, cfg, productByID(string(RegionCN)))
