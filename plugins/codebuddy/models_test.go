@@ -513,3 +513,28 @@ func TestParseModelsFromConfigAcceptsJSONRoundTrip(t *testing.T) {
 		t.Fatalf("max output = %d", models[0].MaxOutputTokens)
 	}
 }
+
+// CPA ignores oauth aliases that differ only by case, so the plugin itself must
+// expose stable brand casing while preserving the provider-native model id for
+// execution.
+func TestPublicAndUpstreamModelIDs(t *testing.T) {
+	cases := []struct{ raw, public string }{
+		{"hy3", "Hy3"},
+		{"deepseek-v4.1-flash", "DeepSeek-V4.1-Flash"},
+		{"glm-5.3", "GLM-5.3"},
+		{"glm-5.3-flash", "GLM-5.3-Flash"},
+		{"minimax-m3", "MiniMax-M3"},
+		{"kimi-k3-1", "Kimi-K3"},
+		{"kimi-k2.7", "Kimi-K2.7-Code"},
+		{"hy4-preview-f", "Hy4-Preview"},
+		{"hy4-preview", "Hy4-Preview-Paid"},
+	}
+	for _, testCase := range cases {
+		if got := publicModelID(testCase.raw); got != testCase.public {
+			t.Errorf("publicModelID(%q) = %q, want %q", testCase.raw, got, testCase.public)
+		}
+		if got := upstreamModelID(testCase.public); got != testCase.raw {
+			t.Errorf("upstreamModelID(%q) = %q, want %q", testCase.public, got, testCase.raw)
+		}
+	}
+}

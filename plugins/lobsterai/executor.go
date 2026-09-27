@@ -154,9 +154,14 @@ func prepareChatCall(h *abiboot.Host, request pluginapi.ExecutorRequest, credent
 	now := time.Now()
 	remote, _, _ := modelByID(request.Model, now)
 	if request.Model != "" && remote.ID == "" {
-		remote = remoteModel{ID: request.Model, Name: request.Model}
+		upstream := upstreamModelID(request.Model)
+		remote = remoteModel{ID: upstream, Name: upstream}
 	}
-	body, model, errPrepare := prepareChatBody(request.Payload, request.Model, cfg, remote)
+	modelForBody := upstreamModelID(request.Model)
+	if remote.ID != "" {
+		modelForBody = remote.ID
+	}
+	body, model, errPrepare := prepareChatBody(request.Payload, modelForBody, cfg, remote)
 	if errPrepare != nil {
 		return nil, errPrepare
 	}

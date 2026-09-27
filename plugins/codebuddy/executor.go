@@ -513,7 +513,7 @@ func buildChatHeaders(credential *Credential, product productConfig, model strin
 // prepareChatCall builds the upstream request for one executor invocation.
 func prepareChatCall(h *abiboot.Host, request pluginapi.ExecutorRequest, credential *Credential, cfg Config) (*chatCall, error) {
 	product := productForCredential(credential)
-	model := strings.TrimSpace(request.Model)
+	model := upstreamModelID(request.Model)
 
 	// Decode once to derive the cache key, then let buildChatBody re-encode.
 	probe := map[string]any{}
@@ -522,6 +522,7 @@ func prepareChatCall(h *abiboot.Host, request pluginapi.ExecutorRequest, credent
 	}
 	if model == "" {
 		model, _ = probe["model"].(string)
+		model = upstreamModelID(model)
 	}
 	remote := resolveRemoteModel(h, credential, product, cfg, model)
 

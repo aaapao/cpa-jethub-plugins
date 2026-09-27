@@ -354,10 +354,45 @@ func mapReasoningEffort(model remoteModel, requested string) string {
 	return trimmed
 }
 
+// publicModelIDs separates the stable client-facing spelling from the
+// LobsterAI native id. CPA intentionally skips aliases that differ only by
+// case, so canonical casing has to be published by the plugin itself.
+var publicModelIDs = map[string]string{
+	"deepseek-flash": "DeepSeek-V4.1-Flash",
+	"glm-5.3-flash":  "GLM-5.3-Flash",
+	"glm-5.3":        "GLM-5.3",
+	"qwen3.8-max":    "Qwen3.8-Max",
+	"qwen3.8-flash":  "Qwen3.8-Flash-Next",
+	"kimi-k2.7-code": "Kimi-K2.7-Code",
+}
+
+var upstreamModelIDs = map[string]string{
+	"deepseek-v4.1-flash": "deepseek-flash",
+	"glm-5.3-flash":       "glm-5.3-flash",
+	"glm-5.3":             "glm-5.3",
+	"qwen3.8-max":         "qwen3.8-max",
+	"qwen3.8-flash-next":  "qwen3.8-flash",
+	"kimi-k2.7-code":      "kimi-k2.7-code",
+}
+
+func publicModelID(id string) string {
+	if canonical, ok := publicModelIDs[id]; ok {
+		return canonical
+	}
+	return id
+}
+
+func upstreamModelID(id string) string {
+	if upstream, ok := upstreamModelIDs[strings.ToLower(strings.TrimSpace(id))]; ok {
+		return upstream
+	}
+	return strings.TrimSpace(id)
+}
+
 // modelInfoFor renders one catalog entry for the host.
 func modelInfoFor(model remoteModel) pluginapi.ModelInfo {
 	info := pluginapi.ModelInfo{
-		ID:                         model.ID,
+		ID:                         publicModelID(model.ID),
 		Object:                     "model",
 		Created:                    time.Now().Unix(),
 		OwnedBy:                    ProviderKey,
@@ -455,6 +490,7 @@ func modelCacheTTL(cfg Config) time.Duration {
 // modelByID looks a model up in the discovery cache and then the fallback
 // catalog. The boolean reports whether the entry came from the remote listing.
 func modelByID(id string, now time.Time) (remoteModel, bool, bool) {
+	id = upstreamModelID(id)
 	cfg := settings()
 	if _, index := discoveredModels.get(modelCacheTTL(cfg), now); index != nil {
 		if model, ok := index[id]; ok {

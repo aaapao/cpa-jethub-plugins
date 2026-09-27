@@ -604,3 +604,28 @@ func TestCurrentCatalogFallsBack(t *testing.T) {
 	}
 	_ = json.Marshal
 }
+
+// The public id keeps stable brand casing while Name and executor requests keep
+// the LobsterAI native id. This is required because CPA skips case-only aliases.
+func TestPublicAndUpstreamModelIDs(t *testing.T) {
+	cases := []struct{ raw, public string }{
+		{"deepseek-flash", "DeepSeek-V4.1-Flash"},
+		{"glm-5.3", "GLM-5.3"},
+		{"glm-5.3-flash", "GLM-5.3-Flash"},
+		{"qwen3.8-max", "Qwen3.8-Max"},
+		{"qwen3.8-flash", "Qwen3.8-Flash-Next"},
+		{"kimi-k2.7-code", "Kimi-K2.7-Code"},
+	}
+	for _, testCase := range cases {
+		if got := publicModelID(testCase.raw); got != testCase.public {
+			t.Errorf("publicModelID(%q) = %q, want %q", testCase.raw, got, testCase.public)
+		}
+		if got := upstreamModelID(testCase.public); got != testCase.raw {
+			t.Errorf("upstreamModelID(%q) = %q, want %q", testCase.public, got, testCase.raw)
+		}
+	}
+	info := modelInfoFor(remoteModel{ID: "glm-5.3", Name: "glm-5.3"})
+	if info.ID != "GLM-5.3" || info.Name != "glm-5.3" {
+		t.Errorf("model info = %+v", info)
+	}
+}

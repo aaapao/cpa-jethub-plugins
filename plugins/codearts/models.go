@@ -74,14 +74,36 @@ func staticModelInfos() []pluginapi.ModelInfo {
 	return out
 }
 
+// publicModelID separates client-facing brand casing from the provider-native
+// model id. CPA skips aliases whose name and alias are EqualFold, so the plugin
+// must publish the canonical spelling itself.
+func publicModelID(id string) string {
+	if strings.EqualFold(strings.TrimSpace(id), BenefitModel) {
+		return "GLM-5.3-Flash"
+	}
+	return strings.TrimSpace(id)
+}
+
+// upstreamModelID maps the canonical public id back to the CodeArts native id.
+func upstreamModelID(id string) string {
+	if strings.EqualFold(strings.TrimSpace(id), "GLM-5.3-Flash") {
+		return BenefitModel
+	}
+	return strings.TrimSpace(id)
+}
+
 // modelInfoFor builds the host-facing model descriptor for one model id.
 func modelInfoFor(id, displayName string) pluginapi.ModelInfo {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
 		name = id
 	}
+	publicID := publicModelID(id)
+	if strings.EqualFold(name, id) {
+		name = publicID
+	}
 	info := pluginapi.ModelInfo{
-		ID:                         id,
+		ID:                         publicID,
 		Object:                     "model",
 		Created:                    time.Now().Unix(),
 		OwnedBy:                    ProviderKey,

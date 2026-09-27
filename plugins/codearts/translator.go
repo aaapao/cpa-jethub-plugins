@@ -50,7 +50,7 @@ func prepareRequestBody(payload []byte, model string, cfg Config, sessionID stri
 		}
 	}
 	if strings.TrimSpace(model) != "" {
-		request.Model = model
+		request.Model = upstreamModelID(model)
 	}
 	request.Model = normalizeModelID(request.Model)
 	if request.Model == "" {

@@ -832,6 +832,52 @@ var imageCapabilityOverrides = map[string]bool{
 }
 
 // effortNames maps an effort id to its label (buddy-adapter.ts:159-165).
+
+// publicModelIDs separates the stable client-facing spelling from the provider
+// native id. CPA deliberately ignores aliases that differ only by case
+// (strings.EqualFold), so canonical brand casing must be published by the
+// plugin itself while the executor keeps sending the native id upstream.
+var publicModelIDs = map[string]string{
+	"hy3":           "Hy3",
+	"hy4-preview-f": "Hy4-Preview",
+	// The paid variant stays excluded by configuration; it gets a distinct
+	// public id so the case-insensitive exclusion cannot also swallow the free
+	// `Hy4-Preview` above.
+	"hy4-preview":         "Hy4-Preview-Paid",
+	"deepseek-v4.1-flash": "DeepSeek-V4.1-Flash",
+	"glm-5.3":             "GLM-5.3",
+	"glm-5.3-flash":       "GLM-5.3-Flash",
+	"kimi-k3-1":           "Kimi-K3",
+	"kimi-k2.7":           "Kimi-K2.7-Code",
+	"minimax-m3":          "MiniMax-M3",
+}
+
+var upstreamModelIDs = map[string]string{
+	"hy3":                 "hy3",
+	"hy4-preview":         "hy4-preview-f",
+	"hy4-preview-paid":    "hy4-preview",
+	"deepseek-v4.1-flash": "deepseek-v4.1-flash",
+	"glm-5.3":             "glm-5.3",
+	"glm-5.3-flash":       "glm-5.3-flash",
+	"kimi-k3":             "kimi-k3-1",
+	"kimi-k2.7-code":      "kimi-k2.7",
+	"minimax-m3":          "minimax-m3",
+}
+
+func publicModelID(id string) string {
+	if canonical, ok := publicModelIDs[id]; ok {
+		return canonical
+	}
+	return id
+}
+
+func upstreamModelID(id string) string {
+	if upstream, ok := upstreamModelIDs[strings.ToLower(strings.TrimSpace(id))]; ok {
+		return upstream
+	}
+	return strings.TrimSpace(id)
+}
+
 var effortNames = map[string]string{
 	"low":    "Low",
 	"medium": "Medium",
@@ -844,7 +890,7 @@ var effortNames = map[string]string{
 func modelInfoFor(product productConfig, model remoteModel, all []remoteModel) pluginapi.ModelInfo {
 	name := displayNameForModelWithSuffix(model, all)
 	info := pluginapi.ModelInfo{
-		ID:                         model.ID,
+		ID:                         publicModelID(model.ID),
 		Object:                     "model",
 		Created:                    time.Now().Unix(),
 		OwnedBy:                    ProviderKey,
