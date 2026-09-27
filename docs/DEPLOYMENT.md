@@ -387,6 +387,9 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 | 别名模型调用返回 `model not found` | 上游模型名不匹配 | 检查 `oauth-model-alias` 中的 `name` 是否与上游一致 |
 | qoder 每日领取显示「无可领取活动」 | 未配置设备身份 | 配置 `machine_token_path` 指向官方客户端的 machine_token.json |
 | qoder 凭证反复失效（重登录后几小时又 401） | 会话被风控作废（自造设备身份易触发） | 配置 `machine_token_path` 复用官方客户端设备身份；避免与 IDE 频繁交替登录 |
+| codearts 报 `Message role cannot empty`（HTTP 500） | 上游不认 OpenAI 的 `developer` 角色 | 使用 v0.3.1+（插件把 developer 归一为语义等价的 system） |
+| lobsterai 报 `角色信息不正确`（HTTP 502） | 同上 | 使用 v0.3.1+ |
+| 客户端（如 DSH）把系统提示词发成 `developer` 角色时的通用说明 | 部分上游只认 system | 使用 v0.3.1+；全部插件已在请求侧把 developer 归一为 system |
 
 ---
 
