@@ -60,6 +60,16 @@ func prepareRequestBody(payload []byte, model string, cfg Config, sessionID stri
 		return nil, nil, abiboot.HTTPError("invalid_request", http.StatusBadRequest, "chat request has no messages")
 	}
 
+	// 上游不认 OpenAI 的 `developer` 角色：带该角色的消息被 InferHub 拒绝
+	// （HTTP 500「InferHub.001001044.400: Message role cannot empty」，文案与
+	// 角色无关——同一请求把 role 换成 system/user 均 200）。两者在 OpenAI 规范里
+	// 语义相同，按 `system` 下发；这也让 insertDsmlSystemPrompt 能找到系统位。
+	for position := range request.Messages {
+		if request.Messages[position].Role == "developer" {
+			request.Messages[position].Role = "system"
+		}
+	}
+
 	request.Stream = true
 	if request.MaxTokens == nil || *request.MaxTokens <= 0 {
 		maxTokens := cfg.DefaultMaxTokens

@@ -269,11 +269,15 @@ func sanitizeEnum(value any) (any, bool) {
 // normalizeMessages rebuilds every message from the whitelist and normalises
 // assistant tool-call arguments.
 //
-// Two rules of §5.3 are applied and one is deliberately not:
+// One rule of §5.3 is applied in a stronger form than the reference and one is
+// deliberately not:
 //
-//   - `role: "developer"` messages are DROPPED (`message-shape.ts:111-145`).
-//     The role is an alias for `system` in the newest OpenAI schema, and the
-//     upstream catalogue spans providers that predate it;
+//   - `role: "developer"` messages are DEMOTED to `role: "system"`. The
+//     reference (`message-shape.ts:111-145`) drops them, which silently loses
+//     the agent system prompt DSH sends in that role (7.7 KB in a real trace).
+//     The role is an alias for `system` in the newest OpenAI schema, so keeping
+//     the message as `system` preserves the instructions without adding a role
+//     any upstream would reject;
 //   - assistant tool-call arguments are normalised by normalizeMessage;
 //   - the `role: "tool"` → `role: "user"` downgrade with `tool-result` blocks is
 //     NOT applied. That rule exists for DSH's internal message shape; the payload
@@ -287,7 +291,7 @@ func normalizeMessages(messages []any) []any {
 			continue
 		}
 		if role := readStringField(message, "role"); role == "developer" {
-			continue
+			message["role"] = "system"
 		}
 		out = append(out, normalizeMessage(message))
 	}

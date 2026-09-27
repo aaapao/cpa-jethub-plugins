@@ -139,6 +139,12 @@ func normaliseMessages(messages []any) []any {
 				continue
 			}
 			out = append(out, message)
+		case "developer":
+			// 防御性归一：OpenAI 的 `developer` 与 `system` 语义相同。上游目前
+			// 恰好接受 developer，但为免上游收紧后踩同款角色拒绝，统一按
+			// `system` 下发。
+			message["role"] = "system"
+			out = append(out, message)
 		default:
 			out = append(out, message)
 		}

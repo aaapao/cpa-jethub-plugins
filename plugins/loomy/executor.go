@@ -230,6 +230,23 @@ func chatRequestBody(request pluginapi.ExecutorRequest) ([]byte, error) {
 	if _, present := body["model"]; !present && strings.TrimSpace(request.Model) != "" {
 		body["model"] = request.Model
 	}
+	// 上游不认 OpenAI 的 `developer` 角色（developer 与 system 在 OpenAI 规范里
+	// 语义相同），按 `system` 下发，避免被网关按非法角色拒绝。
+	if messages, okMessages := body["messages"].([]any); okMessages {
+		out := make([]any, 0, len(messages))
+		for _, item := range messages {
+			message, okMessage := item.(map[string]any)
+			if !okMessage {
+				out = append(out, item)
+				continue
+			}
+			if role, _ := message["role"].(string); role == "developer" {
+				message["role"] = "system"
+			}
+			out = append(out, message)
+		}
+		body["messages"] = out
+	}
 	body["stream"] = true
 	encoded, errMarshal := json.Marshal(body)
 	if errMarshal != nil {

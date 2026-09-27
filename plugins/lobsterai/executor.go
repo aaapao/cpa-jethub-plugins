@@ -76,9 +76,14 @@ func prepareChatBody(payload []byte, model string, cfg Config, remote remoteMode
 	if resolved == "" {
 		return nil, "", abiboot.HTTPError("invalid_request", http.StatusBadRequest, "chat request is missing a model")
 	}
-	if messages, ok := record["messages"].([]any); !ok || len(messages) == 0 {
+	messages, okMessages := record["messages"].([]any)
+	if !okMessages || len(messages) == 0 {
 		return nil, "", abiboot.HTTPError("invalid_request", http.StatusBadRequest, "chat request has no messages")
 	}
+	// 上游不认 OpenAI 的 `developer` 角色：带该角色的请求被网关以
+	// HTTP 502「角色信息不正确」拒绝（system/user 均 200）。两者在 OpenAI
+	// 规范里语义相同，按 `system` 下发。
+	record["messages"] = demoteDeveloperMessages(messages)
 
 	// SSE only.
 	record["stream"] = true
@@ -122,6 +127,26 @@ func prepareChatBody(payload []byte, model string, cfg Config, remote remoteMode
 		return nil, "", abiboot.Errorf("encode_request", "encode LobsterAI chat request: %v", errMarshal)
 	}
 	return encoded, resolved, nil
+}
+
+// demoteDeveloperMessages rewrites OpenAI `developer` role to `system` in a
+// message array. The upstream rejects the `developer` role outright
+// (HTTP 502 「角色信息不正确」), and the two roles are semantically identical in
+// the OpenAI schema. Non-object entries are passed through untouched.
+func demoteDeveloperMessages(messages []any) []any {
+	out := make([]any, 0, len(messages))
+	for _, item := range messages {
+		message, okMessage := item.(map[string]any)
+		if !okMessage {
+			out = append(out, item)
+			continue
+		}
+		if role, _ := message["role"].(string); role == "developer" {
+			message["role"] = "system"
+		}
+		out = append(out, message)
+	}
+	return out
 }
 
 // prepareChatCall builds the outbound request for a chat execution.

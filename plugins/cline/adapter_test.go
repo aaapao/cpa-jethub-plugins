@@ -259,21 +259,25 @@ func TestNormalizeMessagesAssistantRules(t *testing.T) {
 	}
 }
 
-// TestNormalizeMessagesDropsDeveloper pins §5.3: `role: "developer"` is an alias
-// the older upstream providers behind this catalogue do not accept.
-func TestNormalizeMessagesDropsDeveloper(t *testing.T) {
+// TestNormalizeMessagesDemotesDeveloper pins the role handling: `developer` is
+// an alias for `system` in the newest OpenAI schema, and the agent system prompt
+// DSH sends in that role must reach the upstream instead of being dropped.
+func TestNormalizeMessagesDemotesDeveloper(t *testing.T) {
 	messages := normalizeMessages([]any{
 		map[string]any{"role": "developer", "content": "instructions"},
 		map[string]any{"role": "system", "content": "system"},
 		map[string]any{"role": "user", "content": "hi"},
 	})
-	if len(messages) != 2 {
+	if len(messages) != 3 {
 		t.Fatalf("messages = %+v", messages)
 	}
 	for _, message := range messages {
 		if message.(map[string]any)["role"] == "developer" {
 			t.Fatalf("a developer message survived: %+v", message)
 		}
+	}
+	if got := messages[0].(map[string]any)["content"]; got != "instructions" {
+		t.Errorf("demoted message content = %v, want the instructions preserved", got)
 	}
 }
 

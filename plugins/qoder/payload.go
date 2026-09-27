@@ -214,7 +214,9 @@ func inferAskFromRequest(request pluginapi.ExecutorRequest, credential *Credenti
 	for _, message := range wire.Messages {
 		text := messageText(message.Content)
 		switch strings.ToLower(strings.TrimSpace(message.Role)) {
-		case "system":
+		case "system", "developer":
+			// `developer` 与 `system` 在 OpenAI 规范里语义相同；qoder 的推理载荷
+			// 只有 user/assistant 两类历史位，指令文本并入 system 段下发。
 			if text != "" {
 				systemParts = append(systemParts, text)
 			}
