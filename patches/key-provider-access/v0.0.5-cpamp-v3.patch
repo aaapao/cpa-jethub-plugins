@@ -1,0 +1,246 @@
+diff --git a/main.go b/main.go
+index 0905408..db1a66d 100644
+--- a/main.go
++++ b/main.go
+@@ -135,9 +135,10 @@ func pluginRegistration() registration {
+ 			},
+ 		},
+ 		Capabilities: capabilities{
+-			RequestInterceptor: hostSchema >= schemaVersion,
+-			Scheduler:          true,
+-			ManagementAPI:      true,
++			RequestInterceptor:        hostSchema >= schemaVersion,
++			Scheduler:                 true,
++			SchedulerAcrossPriorities: true,
++			ManagementAPI:             true,
+ 		},
+ 	}
+ }
+diff --git a/policy.go b/policy.go
+index 632ddb1..a41f5aa 100644
+--- a/policy.go
++++ b/policy.go
+@@ -487,8 +487,17 @@ func legacyAPIKeyProfileID(candidate schedulerAuthCandidate) string {
+ 	return kind + ":" + digest[:12]
+ }
+ 
++// nextProfile picks the credential for a policy-approved request.
++//
++// The host delivers candidates from every priority tier (this plugin declares
++// scheduler_across_priorities), so the tier rule the host would otherwise apply is
++// reproduced here: only the highest priority tier present among the *eligible*
++// candidates takes part, and selection round-robins inside that tier. Narrowing after
++// the policy filter — instead of before it — is what lets a key reach a lower-priority
++// channel when every higher-priority channel is denied for that key.
+ func (s *state) nextProfile(scope, provider, model string, candidates []schedulerAuthCandidate) string {
+-	if len(candidates) == 0 {
++	tier := highestPriorityTier(candidates)
++	if len(tier) == 0 {
+ 		return ""
+ 	}
+ 	key := scope + "\x00" + strings.ToLower(strings.TrimSpace(provider)) + "\x00" + strings.TrimSpace(model)
+@@ -499,7 +508,28 @@ func (s *state) nextProfile(scope, provider, model string, candidates []schedule
+ 	}
+ 	cursor := s.pickCursor[key]
+ 	s.pickCursor[key] = cursor + 1
+-	return candidates[cursor%uint64(len(candidates))].ID
++	return tier[cursor%uint64(len(tier))].ID
++}
++
++// highestPriorityTier returns the candidates of the best priority tier in their
++// original order, so round-robin state stays stable across calls.
++func highestPriorityTier(candidates []schedulerAuthCandidate) []schedulerAuthCandidate {
++	if len(candidates) == 0 {
++		return nil
++	}
++	best := candidates[0].Priority
++	for _, candidate := range candidates[1:] {
++		if candidate.Priority > best {
++			best = candidate.Priority
++		}
++	}
++	tier := make([]schedulerAuthCandidate, 0, len(candidates))
++	for _, candidate := range candidates {
++		if candidate.Priority == best {
++			tier = append(tier, candidate)
++		}
++	}
++	return tier
+ }
+ 
+ // wildcardMatch supports shell-style '*' and '?' while allowing '*' to cross '/'.
+diff --git a/policy_test.go b/policy_test.go
+index 5b52c18..d1edd5b 100644
+--- a/policy_test.go
++++ b/policy_test.go
+@@ -121,6 +121,85 @@ func TestSchedulerSelectsOnlyAllowedProfiles(t *testing.T) {
+ 	}
+ }
+ 
++func TestSchedulerPrefersHighestPriorityTierOfEligibleProfiles(t *testing.T) {
++	installTestPolicy(t, policyDocument{Version: 2, Policies: []policyConfig{{
++		CallerScope:   scopeA,
++		AllowProfiles: []string{"*"},
++	}}})
++	request := schedulerPickRequest{
++		Provider: "mixed",
++		Model:    "shared-model",
++		Options:  schedulerOptions{Metadata: map[string]any{"caller_scope": scopeA}},
++		Candidates: []schedulerAuthCandidate{
++			{ID: "low-tier-a", Provider: "low", Priority: 4},
++			{ID: "top-tier-a", Provider: "top", Priority: 6},
++			{ID: "mid-tier-a", Provider: "mid", Priority: 5},
++			{ID: "top-tier-b", Provider: "top", Priority: 6},
++		},
++	}
++	want := []string{"top-tier-a", "top-tier-b", "top-tier-a", "top-tier-b"}
++	for index, expected := range want {
++		rawRequest, _ := json.Marshal(request)
++		rawResponse, err := pickProfile(rawRequest)
++		if err != nil {
++			t.Fatal(err)
++		}
++		var response schedulerPickResponse
++		unwrapEnvelope(t, rawResponse, &response)
++		if !response.Handled || response.AuthID != expected {
++			t.Fatalf("pick %d = %#v, want auth %q", index, response, expected)
++		}
++	}
++}
++
++func TestSchedulerReachesLowerTierWhenHigherTiersAreDenied(t *testing.T) {
++	installTestPolicy(t, policyDocument{Version: 2, Policies: []policyConfig{{
++		CallerScope:   scopeA,
++		AllowProfiles: []string{"only-allowed"},
++		DenyProfiles:  []string{"oauth-*"},
++	}}})
++	request := schedulerPickRequest{
++		Provider: "mixed",
++		Model:    "shared-model",
++		Options:  schedulerOptions{Metadata: map[string]any{"caller_scope": scopeA}},
++		Candidates: []schedulerAuthCandidate{
++			{ID: "oauth-a", Provider: "oauth", Priority: 6},
++			{ID: "oauth-b", Provider: "oauth", Priority: 5},
++			{ID: "only-allowed", Provider: "apikey", Priority: 4},
++		},
++	}
++	for index := 0; index < 3; index++ {
++		rawRequest, _ := json.Marshal(request)
++		rawResponse, err := pickProfile(rawRequest)
++		if err != nil {
++			t.Fatal(err)
++		}
++		var response schedulerPickResponse
++		unwrapEnvelope(t, rawResponse, &response)
++		if !response.Handled || response.AuthID != "only-allowed" {
++			t.Fatalf("pick %d = %#v, want the tier-4 allowed profile", index, response)
++		}
++	}
++}
++
++func TestHighestPriorityTierKeepsOrderAndHandlesEmptyInput(t *testing.T) {
++	if tier := highestPriorityTier(nil); len(tier) != 0 {
++		t.Fatalf("highestPriorityTier(nil) = %#v", tier)
++	}
++	candidates := []schedulerAuthCandidate{
++		{ID: "a", Priority: 3},
++		{ID: "b", Priority: 5},
++		{ID: "c", Priority: 5},
++	}
++	tier := highestPriorityTier(candidates)
++	if len(tier) != 2 || tier[0].ID != "b" || tier[1].ID != "c" {
++		t.Fatalf("highestPriorityTier() = %#v", tier)
++	}
++	if candidates[0].ID != "a" || len(candidates) != 3 {
++		t.Fatalf("highestPriorityTier mutated its input: %#v", candidates)
++	}
++}
++
+ func TestSchedulerAdoptsLegacyAPIKeyIDs(t *testing.T) {
+ 	for _, test := range []struct {
+ 		kind     string
+diff --git a/types.go b/types.go
+index 3445df1..723a6b7 100644
+--- a/types.go
++++ b/types.go
+@@ -67,7 +67,12 @@ type configField struct {
+ type capabilities struct {
+ 	RequestInterceptor bool `json:"request_interceptor"`
+ 	Scheduler          bool `json:"scheduler"`
+-	ManagementAPI      bool `json:"management_api"`
++	// SchedulerAcrossPriorities makes the host hand over candidates from every priority
++	// tier. The policy filter (allow/deny) must run before the host narrows candidates to
++	// the best tier, otherwise a key whose allowed channel sits in a lower tier than some
++	// denied channel receives an empty candidate set.
++	SchedulerAcrossPriorities bool `json:"scheduler_across_priorities,omitempty"`
++	ManagementAPI             bool `json:"management_api"`
+ }
+ 
+ type requestInterceptRequest struct {
+diff --git a/web/settings.js b/web/settings.js
+index 2f7f482..9254d02 100644
+--- a/web/settings.js
++++ b/web/settings.js
+@@ -25,6 +25,7 @@
+   const PROFILE_CACHE_KEY = "key-provider-access-profile-cache-v1";
+   const SUPPORTED_LANGUAGES = new Set(["en", "zh-CN", "zh-TW", "ru"]);
+   const OBFUSCATION_PREFIX = "enc::v1::";
++  const OBFUSCATION_PREFIX_V2 = "enc::v2::";
+   const OBFUSCATION_SALT = "cli-proxy-api-webui::secure-storage";
+ 
+   const icons = {
+@@ -338,18 +339,34 @@
+     })[character]);
+   }
+ 
+-  // Mirrors CPAMC secureStorage v1. This is reversible obfuscation for session
+-  // compatibility, not cryptography and not a new security boundary.
+-  function decodeStoredValue(raw) {
+-    if (!raw || !raw.startsWith(OBFUSCATION_PREFIX)) return raw;
+-    const encoded = atob(raw.slice(OBFUSCATION_PREFIX.length));
++  // Mirrors CPAMC secureStorage. CPAMC v1 derives the obfuscation key from
++  // salt|host|userAgent; v2 (CPAMC 2026-09-17, PR #803) derives it from
++  // salt|v2|host so stored sessions survive browser upgrades. Both versions are
++  // readable here so the dashboard session keeps working across CPAMC upgrades.
++  // This is reversible obfuscation for session compatibility, not a security
++  // boundary.
++  function xorDecodeBase64(payload, keyMaterial) {
++    const encoded = atob(payload);
+     const encrypted = Uint8Array.from(encoded, (character) => character.charCodeAt(0));
+-    const key = new TextEncoder().encode(`${OBFUSCATION_SALT}|${window.location.host}|${navigator.userAgent}`);
++    const key = new TextEncoder().encode(keyMaterial);
+     const decoded = new Uint8Array(encrypted.length);
+     for (let index = 0; index < encrypted.length; index += 1) decoded[index] = encrypted[index] ^ key[index % key.length];
+     return new TextDecoder().decode(decoded);
+   }
+ 
++  function decodeStoredValue(raw) {
++    if (!raw || typeof raw !== "string") return raw;
++    if (raw.startsWith(OBFUSCATION_PREFIX_V2)) {
++      try {
++        return xorDecodeBase64(raw.slice(OBFUSCATION_PREFIX_V2.length), `${OBFUSCATION_SALT}|v2|${window.location.host}`);
++      } catch (_) {
++        return raw;
++      }
++    }
++    if (!raw.startsWith(OBFUSCATION_PREFIX)) return raw;
++    return xorDecodeBase64(raw.slice(OBFUSCATION_PREFIX.length), `${OBFUSCATION_SALT}|${window.location.host}|${navigator.userAgent}`);
++  }
++
+   function readStoredValue(name) {
+     try {
+       const raw = localStorage.getItem(name);
+diff --git a/web_test.go b/web_test.go
+index 63e8390..59de2a6 100644
+--- a/web_test.go
++++ b/web_test.go
+@@ -59,6 +59,9 @@ func TestSettingsPageEmbedsAssetsWithNonceCSP(t *testing.T) {
+ 		"plugins_dir",
+ 		"cli-proxy-auth",
+ 		"cli-proxy-theme",
++		"const OBFUSCATION_PREFIX_V2 = \"enc::v2::\"",
++		"function xorDecodeBase64(payload, keyMaterial)",
++		"${OBFUSCATION_SALT}|v2|${window.location.host}",
+ 		"class=\"profile-trigger",
+ 		"<progress class=\"selection-meter\"",
+ 		"state.pendingDraft = serializablePolicy()",

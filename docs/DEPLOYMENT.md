@@ -1,6 +1,6 @@
 # 部署指南：给 CPA 安装 Jet-Hub 插件
 
-本指南覆盖从零开始的完整流程：下载插件 → 安装到 CPA → 配置模型/别名/优先级 → 验证。
+本指南覆盖从零开始的完整流程：下载插件 → 安装到 CPA → 配置模型/别名/优先级 → 验证。需要让多个下游 Key 各看一批渠道时，接第 3.6 节。
 
 ---
 
@@ -195,85 +195,63 @@ oauth-excluded-models:
 
 ### 3.4 配置模型别名（oauth-model-alias）
 
-将各渠道的上游模型名映射为统一的 `-Oauth` 命名。同一模型名由多个渠道提供时，各渠道的别名保持一致（CPA 自动合并为一个模型条目，按优先级选择渠道）：
+把各渠道的上游模型名收敛成一套统一名字，客户端只按这套名字调用。同一模型名由多个渠道提供时，各渠道的别名写成同一个名字，CPA 合并为一个模型条目，再按优先级档选渠道：
 
 ```yaml
 oauth-model-alias:
   cline:
-    - name: "usr-*/deepseek-v4.1-flash"
-      alias: "DeepSeek-V4.1-Flash-Oauth"
-    - name: "usr-*/glm-5.2"
-      alias: "GLM-5.2-Oauth"
-    - name: "usr-*/glm-5.3"
-      alias: "GLM-5.3-Oauth"
-    - name: "usr-*/glm-5.3-flash"
-      alias: "GLM-5.3-Flash-Oauth"
-    - name: "usr-*/kimi-k3"
-      alias: "Kimi-K3-Oauth"
-    - name: "usr-*/minimax-m3"
-      alias: "MiniMax-M3-Oauth"
-    - name: "usr-*/qwen3.8-max"
-      alias: "Qwen3.8-Max-Oauth"
-    - name: "usr-*/qwen3.8-flash"
-      alias: "Qwen3.8-Flash-Next-Oauth"
-    - name: "usr-*/mimo-v2.6-pro"
-      alias: "MiMo-V2.6-Pro-Oauth"
-    - name: "usr-*/mimo-v2.6-flash"
-      alias: "MiMo-V2.6-Flash-Oauth"
+    - name: "cline-free/deepseek-v4.1-flash"
+      alias: "DeepSeek-V4.1-Flash"
+    - name: "cline-free/gemini-3.8-flash"
+      alias: "Gemini-3.8-Flash"
+    - name: "cline-free/mimo-v2.6-pro"
+      alias: "MiMo-V2.6-Pro"
+    - name: "qwen/qwen3.8-27b:free"
+      alias: "Qwen3.8-27B"
   codebuddy:
     - name: "kimi-k3-1"
-      alias: "Kimi-K3-Oauth"
+      alias: "Kimi-K3"
     - name: "deepseek-v4.1-flash"
-      alias: "DeepSeek-V4.1-Flash-Oauth"
-    - name: "glm-5.2"
-      alias: "GLM-5.2-Oauth"
+      alias: "DeepSeek-V4.1-Flash"
     - name: "glm-5.3-flash"
-      alias: "GLM-5.3-Flash-Oauth"
-    - name: "minimax-m3"
-      alias: "MiniMax-M3-Oauth"
+      alias: "GLM-5.3-Flash"
   lobsterai:
     - name: "deepseek-flash"
-      alias: "DeepSeek-V4.1-Flash-Oauth"
-    - name: "glm-5.3-flash"
-      alias: "GLM-5.3-Flash-Oauth"
+      alias: "DeepSeek-V4.1-Flash"
     - name: "glm-5.3"
-      alias: "GLM-5.3-Oauth"
-    - name: "qwen3.8-max"
-      alias: "Qwen3.8-Max-Oauth"
+      alias: "GLM-5.3"
     - name: "qwen3.8-flash"
-      alias: "Qwen3.8-Flash-Next-Oauth"
-    - name: "MiniMax-M3"
-      alias: "MiniMax-M3-Oauth"
+      alias: "Qwen3.8-Flash-Next"
   qoder:
-    - name: "qmodel_38max"
-      alias: "Qwen3.8-Max-Oauth"
-    - name: "qfmodel"
-      alias: "Qwen3.8-Flash-Next-Oauth"
     - name: "gmodel"
-      alias: "GLM-5.3-Oauth"
+      alias: "GLM-5.3"
     - name: "gfmodel"
-      alias: "GLM-5.3-Flash-Oauth"
+      alias: "GLM-5.3-Flash"
     - name: "mmodel"
-      alias: "MiniMax-M3-Oauth"
+      alias: "MiniMax-M3"
+    - name: "qmodel_38max"
+      alias: "Qwen3.8-Max"
   raccoon:
     - name: "sn-deepseek-v4.1-flash"
-      alias: "DeepSeek-V4.1-Flash-Oauth"
-    - name: "sn-glm-5.2"
-      alias: "GLM-5.2-Oauth"
-    - name: "sn-glm-5.3-flash"
-      alias: "GLM-5.3-Flash-Oauth"
-    - name: "sn-minimax-m3"
-      alias: "MiniMax-M3-Oauth"
+      alias: "DeepSeek-V4.1-Flash"
+    - name: "sn-glm-5.3"
+      alias: "GLM-5.3"
     - name: "sn-sensenova-6-8-flash"
-      alias: "SenseNova-6.8-Flash-Oauth"
-    - name: "sn-sensenova-6-8-flash-lite"
-      alias: "SenseNova-6.8-Flash-Lite-Oauth"
+      alias: "SenseNova-6.8-Flash"
   loomy:
     - name: "glm-5.3-flash"
-      alias: "GLM-5.3-Flash-Oauth"
+      alias: "GLM-5.3-Flash"
     - name: "qwen3.8-flash"
-      alias: "Qwen3.8-Flash-Next-Oauth"
+      alias: "Qwen3.8-Flash-Next"
 ```
+
+**命名约定**：别名不带渠道后缀。渠道之间的区分交给下游 Key（见 §3.6），模型名只表达模型本身；给别名加 `-Oauth` 之类的后缀，会让同一个 Key 内本可合并的同名模型拆成两条。
+
+> ⚠️ **别名与上游名仅大小写不同时，CPA 视为无操作**（内部按 `strings.EqualFold` 判断），此时该渠道的模型以上游原名的形式进入 `/v1/models`。
+> 例：上游 `glm-5.3` 配别名 `GLM-5.3` 不生效，列表里会同时存在 `glm-5.3`（这条渠道的原名）与 `GLM-5.3`（能真正改名的渠道，如 `gmodel` → `GLM-5.3`）。
+> 两个名字都能调用；要让名字严格唯一，别名的拼写必须与上游名有大小写之外的差异。
+
+需要同时保留原名与别名时，在该条目上加 `fork: true`。
 
 ### 3.5 设置凭据优先级
 
@@ -312,6 +290,113 @@ for pattern, p in prio.items():
 
 > **注意**：插件自动续期时会重写凭据文件。v0.3.0+ 的插件已修复为保留 `priority` 等宿主托管字段，无需重复设置。
 
+**同名模型落到哪个渠道**：一次请求先排除当前不可用的凭据，再只保留**最高优先级档**的候选，档内轮询；该档没有可用凭据时才降档。所以一个模型名被多个渠道提供时，实际接单的渠道由各渠道的 `priority` 决定。给同名模型加别名后缀不改变这条规则，改 `priority` 才会。
+
+> ⚠️ 按 §3.6 做 Key 隔离时，这条档位规则默认**先于** Key 策略生效：某个 Key 允许的渠道若在低档、而被它拒绝的渠道占了更高档，该 Key 请求这些同名模型会返回 403 `no allowed upstream profile is available for this API key`。处理方式见 §3.6 步骤 4。
+
+### 3.6 按下游 Key 隔离渠道（可选）
+
+**适用场景**：一个 CPA 实例发给多个下游 Key，每个 Key 只能访问指定渠道（例如 Key 1 只走 OAuth 渠道，Key 2 只走某几个 API Key 渠道）。此时同名模型不需要再用别名后缀区分渠道。
+
+**为什么必须用插件**：CPA 的 `api-keys` 是字符串列表，一个 Key 只有"认证通过/不通过"两种状态，没有权限字段。按 Key 限制渠道要由插件在认证之后过滤上游凭据，本文以 `key-provider-access` 为例。
+
+| 概念 | 含义 |
+| --- | --- |
+| `caller_scope` | 下游 Key 的派生标识，策略以它为主键，策略文件不落明文 Key |
+| profile | 一条上游凭据。OAuth 渠道为 `auths/` 下的文件名；API Key 渠道为 `openai-compatibility:<渠道名>:<hash>` |
+| `allow_profiles` | 允许清单，非空即白名单模式 |
+| `deny_profiles` | 禁止清单，优先级高于 allow |
+| 通配符 | `*` 匹配任意长度字符，`?` 匹配单字符 |
+
+`caller_scope` 不是 Key 的裸 SHA-256，取法（`<下游 Key>` 换成实际值，输出即策略里的 `caller_scope`）：
+
+```bash
+python3 -c "import hashlib,sys; print(hashlib.sha256(b'cli-proxy-api:caller-scope:v1\x00'+sys.argv[1].strip().encode()).hexdigest())" '<下游 Key>'
+```
+
+**前置条件**
+
+- 已按第 1～3 节装好 OAuth 插件，`auths/` 下已有可用凭据。
+- 已列出每个 Key 各自允许的渠道，以及其余全部渠道。
+
+> ⚠️ **风险与限制**
+> - `allow` 与 `deny` 必须互补、覆盖全部渠道。插件在 `allow` 与当前候选池无交集时会临时放行"非 deny"的候选，只写 allow 或只写 deny 都可能让某个 Key 访问到不该访问的渠道。
+> - 策略文件里是渠道级授权，不含配额、限流、计费。
+
+1. 安装插件，放进 CPA 的插件目录 `plugins/linux/amd64/`。
+   - 预期结果：`key-provider-access-<版本>.so` 出现在该目录。
+2. 在 `config.yaml` 的 `plugins.configs` 下启用，并指定策略文件路径：
+
+   ```yaml
+   plugins:
+     configs:
+       key-provider-access:
+         enabled: true
+         priority: 100                              # 调度类插件全局只生效一个，取优先级最高者
+         version: 2
+         policy_file: /CLIProxyAPI/plugins/key-provider-access/config.toml
+         policies: []
+   ```
+
+3. 重启 CPA，确认插件已加载且策略条数正确。
+
+   ```bash
+   curl -s -H "Authorization: Bearer <管理密钥>" \
+     http://localhost:8317/v0/management/plugins/key-provider-access/status
+   ```
+
+   - 预期结果：`"policy_count"` 等于策略条数，`"last_error"` 为空；`"version"` 见步骤 4 的说明。
+4. 确认插件版本声明了跨优先级档的调度能力（`scheduler_across_priorities`）。
+   - 预期结果：`status` 的 `version` 为 `0.0.5-cpamp-v3` 或更高。该标识对应上游 `v0.0.5` 加两处本地补丁：配置页支持 CPAMC 的 `enc::v2::` 会话（否则页面恒提示"未找到可复用的 CPAMC 会话"）、`capabilities.scheduler_across_priorities: true`，并让 `Pick` 在策略过滤后的允许集合内自行按"最高档 + 档内轮询"选择（与 CPA 原生档位语义一致）。
+   - 看不到该版本时先不要继续：CPA 默认只把**最高优先级档**的凭据交给调度插件，策略过滤发生在裁剪之后。Key 允许的渠道处于低档、被拒绝的渠道占更高档时，请求会返回 403 `no allowed upstream profile is available for this API key`——策略本身没错，是候选集在策略生效前就被裁掉了。
+5. 写策略文件并使其生效。
+
+   ```toml
+   # 两条策略的 allow / deny 互补：每个渠道要么进某个 Key 的 allow，要么进另一个 Key 的 deny
+   version = 2
+
+   [[policies]]
+     caller_scope = "<Key 1 的 caller_scope>"
+     allow_profiles = ["*.json", "openai-compatibility:modelscope:*", "openai-compatibility:nvidia:*"]
+     deny_profiles = ["openai-compatibility:commandcode:*", "openai-compatibility:ollama:*", "openai-compatibility:天才程序员:*"]
+
+   [[policies]]
+     caller_scope = "<Key 2 的 caller_scope>"
+     allow_profiles = ["openai-compatibility:commandcode:*", "openai-compatibility:天才程序员:*"]
+     deny_profiles = ["*.json", "openai-compatibility:modelscope:*", "openai-compatibility:nvidia:*", "openai-compatibility:ollama:*"]
+   ```
+
+   示例只列了部分渠道。实际配置按互补规则写全：只属于 Key 1 的渠道必须出现在 Key 2 的 `deny_profiles` 里（而不是只出现在 Key 1 的 `allow_profiles` 里）；两个 Key 都不该访问的渠道要同时出现在两份 `deny_profiles` 里。
+
+   ```bash
+   # 首次落盘策略文件（把当前内存策略迁移到 policy_file）
+   curl -s -X POST -H "Authorization: Bearer <管理密钥>" -H "Content-Type: application/json" \
+     -d '{"plugins_dir": "/CLIProxyAPI/plugins"}' \
+     http://localhost:8317/v0/management/plugins/key-provider-access/initialize-storage
+   # 改完策略文件后使其生效（不重启）
+   curl -s -X POST -H "Authorization: Bearer <管理密钥>" \
+     http://localhost:8317/v0/management/plugins/key-provider-access/reload
+   ```
+
+   - 预期结果：`reload` 返回成功；再次查询 `status`，`"source"` 指向 `policy_file`，`"persistent_updates"` 为 `true`。
+6. 用同一个模型名分别以两个 Key 请求一次。
+   - 预期结果：允许方返回 200，被拒绝方返回 403，错误体为 `{"error":{"message":"no allowed upstream profile is available for this API key","type":"permission_error","code":"insufficient_quota"}}`。
+
+**失败处理**
+
+- 被拒绝方仍返回 200 → 该 Key 的 `caller_scope` 与策略不匹配（按 `unconfigured_key_action` 全量放行），或 `deny` 未覆盖该渠道。先核对 `caller_scope`，再按互补规则补齐 `deny`。
+- 允许方返回 403 → 先看步骤 4 的版本与 `runtime_warning`：出现 `profile_match_failed` 说明该请求被策略拒绝过，按 §5 的排查行处理。
+
+**渠道变更后的动作**
+
+| 变更 | 需要做的事 |
+| --- | --- |
+| 新增渠道并分配给某个 Key | 加入该 Key 的 `allow`，同时加入另一个 Key 的 `deny` |
+| 新增渠道且两个 Key 都不该访问 | 加入两个 Key 的 `deny` |
+| 渠道换 API Key | 不改策略：profile ID 里的 hash 由前缀通配 `*` 覆盖 |
+| 新增 OAuth 凭据 | 不改策略：`*.json` 已覆盖 |
+| 新增下游 Key | 写入 `api-keys`；需要限制则新建对应策略，否则按 `unconfigured_key_action` 全量可用 |
+
 ---
 
 ## 4. 验证
@@ -333,13 +418,18 @@ for p in json.load(sys.stdin)['plugins']:
 ```bash
 curl -s -H "Authorization: Bearer <API密钥>" \
   http://localhost:8317/v1/models | python3 -c "
-import sys, json
+import sys, json, collections
 d = json.load(sys.stdin)
-oauth = [m['id'] for m in d['data'] if m['id'].endswith('-Oauth')]
-print(f'总模型数: {len(d[\"data\"])}  |  -Oauth: {len(oauth)}')
-for m in sorted(oauth): print(f'  {m}')
+by_owner = collections.defaultdict(list)
+for m in d['data']:
+    by_owner[m.get('owned_by')].append(m['id'])
+print(f'总模型数: {len(d[\"data\"])}')
+for owner in sorted(by_owner): print(f'  {owner:26s} {len(by_owner[owner])}')
 "
 ```
+
+- 预期结果：每个启用的渠道都出现在列表里，条目数与各渠道 `models` + `oauth-model-alias` 的配置相符。
+- 同一模型名由多个渠道提供时只登记一条，`owned_by` 显示最后注册的渠道，不代表该模型只能由这个渠道服务。
 
 ### 4.3 检查凭据优先级
 
@@ -358,7 +448,7 @@ for a in sorted(json.load(sys.stdin).get('files') or [], key=lambda x:-(x.get('p
 curl -s -X POST http://localhost:8317/v1/chat/completions \
   -H "Authorization: Bearer <API密钥>" \
   -H "Content-Type: application/json" \
-  -d '{"model":"DeepSeek-V4.1-Flash-Oauth","messages":[{"role":"user","content":"说三个字"}],"max_tokens":16}'
+  -d '{"model":"DeepSeek-V4.1-Flash","messages":[{"role":"user","content":"说三个字"}],"max_tokens":16}'
 ```
 
 ### 4.5 测试流式
@@ -367,7 +457,7 @@ curl -s -X POST http://localhost:8317/v1/chat/completions \
 curl -s -N -X POST http://localhost:8317/v1/chat/completions \
   -H "Authorization: Bearer <API密钥>" \
   -H "Content-Type: application/json" \
-  -d '{"model":"Kimi-K3-Oauth","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"stream":true}'
+  -d '{"model":"Kimi-K3","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"stream":true}'
 ```
 
 确认响应是标准 SSE 格式（`data: {...}` 帧 + `data: [DONE]`），无双重 `data: data:` 前缀。
@@ -391,6 +481,10 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 | codearts 报 `Message role cannot empty`（HTTP 500） | 上游不认 OpenAI 的 `developer` 角色 | 升级到含 developer 角色归一的版本（v0.3.1 引入） |
 | lobsterai 报 `角色信息不正确`（HTTP 502） | 同上 | 同上 |
 | 客户端（如 DSH）把系统提示词发成 `developer` 角色时的通用说明 | 部分上游只认 system | 全部插件已在请求侧把 developer 归一为 system（v0.3.1 引入） |
+| 别名配了但 `/v1/models` 里仍是上游原名（如 `glm-5.3` 与 `GLM-5.3` 并存） | 别名与上游名仅大小写不同，CPA 视为无操作 | 让别名与上游名有大小写之外的差异，或直接按原名调用——两个名字都能路由 |
+| 某个 Key 请求同名模型返回 403 `no allowed upstream profile is available for this API key`，而该渠道确实写在该 Key 的 `allow_profiles` 里 | 候选集在 Key 策略生效前就被裁到最高优先级档（见 §3.6 步骤 4） | 用声明 `scheduler_across_priorities` 的 `key-provider-access`（`0.0.5-cpamp-v3` 起）；或把该渠道的 `priority` 调到与被拒绝渠道同档 |
+| 同名模型被路由到非预期的渠道（例如免费 OAuth 模型走了付费 API Key 渠道） | 同名模型按优先级档选渠道，最高档优先，名字后缀不参与选择 | 调 `priority`；需要按 Key 区分渠道时按 §3.6 配置 |
+| 某渠道的模型整段超时（请求 20s 以上无响应） | 该渠道上游不可用 | 用 `/v1/models` 确认该模型是否还有其它渠道；必要时降低该渠道 `priority` 让它退出共享模型名所在档，或直接停用该渠道 |
 
 ---
 
