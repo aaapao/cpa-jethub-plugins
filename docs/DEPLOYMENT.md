@@ -290,7 +290,19 @@ for pattern, p in prio.items():
 
 > **注意**：插件自动续期时会重写凭据文件。v0.3.0+ 的插件已修复为保留 `priority` 等宿主托管字段，无需重复设置。
 
+API Key 渠道（`openai-compatibility`）的档位写在该渠道的配置项里，与 OAuth 凭据共用同一套档位语义：
+
+```yaml
+openai-compatibility:
+  - name: CommandCode
+    priority: 4          # 缺省为 5
+    base-url: https://api.commandcode.ai/provider/v1
+    # ...
+```
+
 **同名模型落到哪个渠道**：一次请求先排除当前不可用的凭据，再只保留**最高优先级档**的候选，档内轮询；该档没有可用凭据时才降档。所以一个模型名被多个渠道提供时，实际接单的渠道由各渠道的 `priority` 决定。给同名模型加别名后缀不改变这条规则，改 `priority` 才会。
+
+> ⚠️ 某个渠道整体不可用时（连不上、超时、模型下线），要把它移出同名模型所在的档位，否则请求会一直卡在这个渠道上直到超时。做法是降低该渠道的 `priority`（或直接 `disabled: true`），让它退出最高档。
 
 > ⚠️ 按 §3.6 做 Key 隔离时，这条档位规则默认**先于** Key 策略生效：某个 Key 允许的渠道若在低档、而被它拒绝的渠道占了更高档，该 Key 请求这些同名模型会返回 403 `no allowed upstream profile is available for this API key`。处理方式见 §3.6 步骤 4。
 
