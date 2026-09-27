@@ -67,6 +67,13 @@ type Config struct {
 	WASMPath string
 	// ClientVersion is written into `Cosy-Version` and the signed payload.
 	ClientVersion string
+	// MachineTokenPath points at the official client's `machine_token.json`
+	// (the UMID device identity). When set, its token/type pair is sent as
+	// `Cosy-MachineToken`/`Cosy-MachineType`, which the server requires before
+	// it credits the caller as an activated device — without the pair the
+	// campaigns endpoint hides the daily benefit and inference sessions are
+	// treated as unidentified clients. Empty disables the overlay.
+	MachineTokenPath string
 	// SessionType overrides the per-region `session_type` value.
 	SessionType string
 	// PublicModels are extra model names for the PUBLIC endpoint, supplied by the
@@ -137,6 +144,7 @@ func ConfigFromYAML(document []byte) Config {
 	cfg.WASMPath = coerceString(raw["wasm_path"], cfg.WASMPath)
 	cfg.ClientVersion = coerceString(raw["client_version"], cfg.ClientVersion)
 	cfg.SessionType = coerceString(raw["session_type"], cfg.SessionType)
+	cfg.MachineTokenPath = coerceString(raw["machine_token_path"], cfg.MachineTokenPath)
 	cfg.PublicModels = coerceList(raw["public_models"])
 	cfg.ModelPrefix = coerceBool(raw["model_prefix"], cfg.ModelPrefix)
 	cfg.DefaultMaxTokens = coerceInt(raw["max_tokens"], cfg.DefaultMaxTokens)
@@ -257,6 +265,7 @@ func ConfigFields() []configField {
 			Description: "区域：qoder=国际版（api2-v2.qoder.sh 公开 / api2.qoder.sh 加密），qoder-cn=国内版（两者同为 gateway.qoder.com.cn）。凭据自带 region 时以凭据为准"},
 		{Name: "wasm_path", Type: "string",
 			Description: "本地 Qoder 签名 WASM 的路径（可选）。留空则只走公开 OpenAI 兼容端点；填写后走 agent_chat_generation 加密端点并原样透传 WASM 生成的签名头"},
+		{Name: "machine_token_path", Type: "string", Description: "官方客户端 machine_token.json 的路径（可选）。提供后请求携带 Cosy-MachineToken/Type 设备身份，服务端才会下发每日领取活动并将推理会话视为已激活设备"},
 		{Name: "client_version", Type: "string", Description: "Cosy-Version 客户端版本（默认 1.1.49，对应 qoder-wasm.ts 的 COSY_VERSION）"},
 		{Name: "session_type", Type: "string", Description: "加密请求体的 session_type，留空则按区域取值（国际 qodercli / 国内 qoder_work）"},
 		{Name: "public_models", Type: "string", Description: "公开端点额外可用的通用模型名，逗号分隔（如 qwen-flash,qwen-plus）。目录 key 只对加密端点有效，公开端点不认"},

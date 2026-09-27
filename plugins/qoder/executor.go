@@ -276,8 +276,14 @@ func sendEncrypted(h *abiboot.Host, request pluginapi.ExecutorRequest, credentia
 	if errSign != nil {
 		return nil, statusError(false, "wasm_sign", http.StatusInternalServerError, "WASM 签名失败：%v", errSign)
 	}
+	signedHeaders := signed.Headers
+	// The WASM fills `Cosy-MachineToken` with the session machine_id and
+	// `Cosy-MachineType` with a constant — placeholders the server does not
+	// credit as a device. The official client's identity replaces them when
+	// configured, so inference rides an activated device like the IDE's own.
+	applyMachineHeaders(signedHeaders, cfg)
 	headers := http.Header{}
-	for name, value := range signed.Headers {
+	for name, value := range signedHeaders {
 		headers.Set(name, value)
 	}
 	headers.Set("Accept", "text/event-stream")

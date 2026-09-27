@@ -78,8 +78,8 @@ type claimOutcome struct {
 }
 
 // creditsHeaders is `creditsHeaders` (`qoder-credits.ts:88-96`).
-func creditsHeaders(credential *Credential, _ *product) http.Header {
-	return canonicalHeader(
+func creditsHeaders(credential *Credential, cfg Config) http.Header {
+	header := canonicalHeader(
 		"Accept", "application/json",
 		"Authorization", "Bearer "+credential.bearerToken(),
 		// Fixed header from upstream `Bx()`; the server uses it to tell client
@@ -87,6 +87,14 @@ func creditsHeaders(credential *Credential, _ *product) http.Header {
 		"Cosy-ClientType", sharedClientMetadata.ClientType,
 		"User-Agent", "Qoder",
 	)
+	// The server only credits an activated device when the machine pair rides
+	// along (`Cosy-MachineToken` + `Cosy-MachineType`, values from the official
+	// client); without it the campaigns endpoint hides the daily benefit.
+	if identity := machineIdentityFor(cfg); identity != nil && identity.Token != "" {
+		header.Set("Cosy-MachineToken", identity.Token)
+		header.Set("Cosy-MachineType", identity.Type)
+	}
+	return header
 }
 
 // readNumber reads a JSON number that may also arrive as a numeric string.
@@ -165,7 +173,7 @@ func maxFloat(value, floor float64) float64 {
 // the quota ran out (`qoder-credits.ts:158-160`, `:193-194`).
 func fetchCreditBalance(h *abiboot.Host, credential *Credential, cfg Config) (*creditBalance, error) {
 	p := credential.product(cfg.Region)
-	response, errDo := hostRequest(h, http.MethodGet, p.OpenAPIBase+UsagePath, creditsHeaders(credential, p), nil, cfg)
+	response, errDo := hostRequest(h, http.MethodGet, p.OpenAPIBase+UsagePath, creditsHeaders(credential, cfg), nil, cfg)
 	if errDo != nil {
 		return nil, transportError("credits_transport", "查询积分失败：%v", errDo)
 	}
@@ -232,7 +240,7 @@ func fetchCreditBalance(h *abiboot.Host, credential *Credential, cfg Config) (*c
 // loadCampaigns reads the campaigns list (`loadCampaigns`, `qoder-credits.ts:301-320`).
 func loadCampaigns(h *abiboot.Host, credential *Credential, cfg Config) (*campaigns, error) {
 	p := credential.product(cfg.Region)
-	response, errDo := hostRequest(h, http.MethodGet, p.OpenAPIBase+CampaignsPath, creditsHeaders(credential, p), nil, cfg)
+	response, errDo := hostRequest(h, http.MethodGet, p.OpenAPIBase+CampaignsPath, creditsHeaders(credential, cfg), nil, cfg)
 	if errDo != nil {
 		return nil, transportError("campaigns_transport", "查询活动列表失败：%v", errDo)
 	}
@@ -303,7 +311,7 @@ func claimableCampaigns(parsed *campaigns) []campaign {
 // ⚠️ The request body must be empty (the capture showed `content-length: 0`).
 func claimCampaign(h *abiboot.Host, credential *Credential, cfg Config, campaignID string) claimOutcome {
 	p := credential.product(cfg.Region)
-	headers := creditsHeaders(credential, p)
+	headers := creditsHeaders(credential, cfg)
 	headers.Set("Content-Type", "application/json")
 	url := p.OpenAPIBase + CampaignsPath + "/" + urlPathEscape(campaignID) + "/claim"
 	response, errDo := hostRequest(h, http.MethodPost, url, headers, nil, cfg)
