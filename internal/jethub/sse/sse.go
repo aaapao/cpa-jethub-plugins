@@ -59,8 +59,14 @@ func parseDataLine(line string) (string, bool) {
 // terminal `data: [DONE]` itself. A payload that already carries a `data:`
 // prefix therefore reaches the client as `data: data: {…}`, and a client reading
 // SSE then fails to parse that frame as JSON.
+//
+// The payload is also passed through SanitizePayload, which drops a `tool_calls`
+// member whose value is an empty array. Every passthrough executor funnels its
+// upstream frames through here, so this is the one place that has to know about
+// the empty-array convention; see SanitizePayload for why leaving it in place
+// splits a reasoning stream into one segment per token downstream.
 func Payload(payload string) []byte {
-	return []byte(payload)
+	return []byte(SanitizePayload(payload))
 }
 
 // PayloadJSON marshals v into one stream chunk payload (bare, see Payload).
