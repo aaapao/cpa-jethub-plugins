@@ -476,6 +476,20 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 
 确认响应是标准 SSE 格式（`data: {...}` 帧 + `data: [DONE]`），无双重 `data: data:` 前缀。
 
+### 4.6 确认思考内容没有被拆成逐字分段
+
+```bash
+curl -s -N -X POST http://localhost:8317/v1/chat/completions \
+  -H "Authorization: Bearer <API密钥>" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"DeepSeek-V4.1-Flash","messages":[{"role":"user","content":"用三句话解释哈希表"}],"max_tokens":200,"stream":true,"reasoning_effort":"high"}' \
+  | grep -c '"tool_calls":\[\]'
+```
+
+- 预期结果：输出 `0`（`grep` 无命中时退出码为 1，属正常）。
+- 输出非 `0` 说明插件版本过旧，见第 5 节对应条目。
+- 该模型必须由 CodeBuddy 渠道提供才具备判定意义；先按第 4.2 节确认 `owned_by` 为 `codebuddy`。
+
 ---
 
 ## 5. 常见问题
@@ -496,6 +510,7 @@ curl -s -N -X POST http://localhost:8317/v1/chat/completions \
 | codearts 报 `Message role cannot empty`（HTTP 500） | 上游不认 OpenAI 的 `developer` 角色 | 升级到含 developer 角色归一的版本（v0.3.1 引入） |
 | lobsterai 报 `角色信息不正确`（HTTP 502） | 同上 | 同上 |
 | 客户端（如 DSH）把系统提示词发成 `developer` 角色时的通用说明 | 部分上游只认 system | 全部插件已在请求侧把 developer 归一为 system（v0.3.1 引入） |
+| 思考内容在客户端里逐字显示（每行一个词，如 ZCode 出现几十行「思考」） | CodeBuddy 渠道在每个分片里都带 `"tool_calls":[]`，基于分段渲染的客户端把每个分片当成一段独立的思考 | 升级到含空 `tool_calls` 剥离的版本（v0.3.3 引入），重启 CPA；判定方法见第 4.6 节 |
 | 别名配了但 `/v1/models` 里仍是上游原名（如 `glm-5.3` 与 `GLM-5.3` 并存） | 别名与上游名仅大小写不同，CPA 视为无操作 | 让别名与上游名有大小写之外的差异，或直接按原名调用——两个名字都能路由 |
 | 某个 Key 请求同名模型返回 403 `no allowed upstream profile is available for this API key`，而该渠道确实写在该 Key 的 `allow_profiles` 里 | 候选集在 Key 策略生效前就被裁到最高优先级档（见 §3.6 步骤 4） | 用声明 `scheduler_across_priorities` 的 `key-provider-access`（`0.0.5-cpamp-v3` 起）；或把该渠道的 `priority` 调到与被拒绝渠道同档 |
 | 同名模型被路由到非预期的渠道（例如免费 OAuth 模型走了付费 API Key 渠道） | 同名模型按优先级档选渠道，最高档优先，名字后缀不参与选择 | 调 `priority`；需要按 Key 区分渠道时按 §3.6 配置 |

@@ -70,7 +70,7 @@ needs them.
 
 | TS file | Role | Disposition for the Go port |
 | --- | --- | --- |
-| `sse.ts` | SSE idle-timeout reader and tool-call pairing helpers: `readWithIdleTimeout`, `resolveToolPairing`, `normalizeToolArguments`, `isTruncatedArguments` **[V]** | Shared concern. `internal/jethub/sse/sse.go` already provides a `Scanner` and `Encode`; the idle-timeout and tool-pairing helpers still need a Go equivalent. |
+| `sse.ts` | SSE idle-timeout reader and tool-call pairing helpers: `readWithIdleTimeout`, `resolveToolPairing`, `normalizeToolArguments`, `isTruncatedArguments` **[V]** | Shared concern. `internal/jethub/sse/sse.go` already provides a `Scanner` and bare-payload `Payload`/`PayloadJSON`; the idle-timeout and tool-pairing helpers still need a Go equivalent. |
 | `openai-compat.ts` | Message serialization, `consumeOpenAiSse`, error classification **[V]** | Consumed **only** by `qoder-adapter.ts` **[V]**. Port for Qoder only. |
 | `product.ts` | `BuddyProduct` config for the CodeBuddy/WorkBuddy family **[V]** | Port for CodeBuddy (`config.go`). |
 | `credits.ts` | CodeBuddy/WorkBuddy daily check-in client **[V]** | Port for CodeBuddy (`credits.go`). |
@@ -87,7 +87,7 @@ these rather than re-deriving them per provider:
 
 | Go package | Ports | Relevant to |
 | --- | --- | --- |
-| `internal/jethub/sse` | SSE frame scanning and `[DONE]` encoding | all four providers |
+| `internal/jethub/sse` | SSE frame scanning, bare-payload encoding, and the empty-`tool_calls` strip | all four providers |
 | `internal/jethub/openai` | OpenAI wire types (request, chunk, completion, usage) | all four providers |
 | `internal/jethub/oauthcb` | Loopback callback listener: bind `127.0.0.1`, serve one callback path, hand the query to a blocking waiter, expose `Port()`/`RedirectURI()` | TRAE (port 18080), LobsterAI (random port) |
 | `internal/jethub/accountpool` | Account selection and rate-limit bookkeeping | all four providers |
@@ -445,7 +445,8 @@ All from `lobsterai.ts` unless noted.
 | Topic | Detail | Confidence |
 | --- | --- | --- |
 | No dependency additions | The port must stay on stdlib plus `sdk/{pluginabi,pluginapi}`. Qoder's WASM and any HTTP/2 or fingerprinting need would require new modules; that is a constraint conflict to resolve before those parts can be built. | **[I]** |
-| Shared SSE helper | `internal/jethub/sse` already exists with a frame `Scanner` and `Encode`/`DoneEvent`. All four providers consume SSE; the idle-timeout and tool-pairing logic from `sse.ts` is still missing there. | **[V]** for the Go package, **[V]** for the TS helpers |
+| Shared SSE helper | `internal/jethub/sse` already exists with a frame `Scanner`, bare-payload `Payload`/`PayloadJSON`, and `SanitizePayload`. All four providers consume SSE; the idle-timeout and tool-pairing logic from `sse.ts` is still missing there. | **[V]** for the Go package, **[V]** for the TS helpers |
+| Forward frames through `sse.Payload` | A passthrough executor must return upstream frames via `sse.Payload`, never as raw bytes. It strips an empty `tool_calls` array, which CodeBuddy sends on **every** frame (reasoning frames included). Downstream AI SDK clients treat any non-null `delta.tool_calls` as "this turn carries tool calls", close the active reasoning segment, and open a new one on the next reasoning frame — so one token becomes one segment, which segment-based clients render as one word per row. Directly concatenating the payload (as LobsterAI's byte-for-byte branch did) bypasses the strip. | **[V]** live capture, **[V]** in the AI SDK source |
 | Credential field names | Jet-Hub credential JSON keeps provider-specific snake_case keys (`access_token`, `refresh_token`, `security_oauth_token`, `machine_id`, `expire_time`). Keeping the same names makes existing auth material interchangeable. | **[V]** for CodeBuddy/Qoder/LobsterAI shapes |
 | Two-step login is mandatory | `auth.login.start` returns the URL; `auth.login.poll` advances the flow. A blocking implementation breaks the browser gesture and the settings page. | **[D]** |
 | Refresh must ignore "disabled" | Refresh must be driven by "is this credential refreshable", not by the account's enabled flag. | **[D]** |
