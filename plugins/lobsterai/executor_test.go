@@ -665,3 +665,57 @@ func TestRawStringNullHandling(t *testing.T) {
 		})
 	}
 }
+
+// TestExecuteStreamStripsEmptyToolCalls guards the branch that is easiest to
+// miss: `consumeUpstreamStream` relays an untouched frame as its ORIGINAL bytes
+// (executor.go:610), so a sanitizer that only rewrote the re-marshalled branch
+// would leave this bug in place. LobsterAI's own rewriters (normalizeToolCallEntry,
+// setEmptyToolArguments, the finish_reason rewrite) never remove an empty array,
+// and a pure reasoning stream triggers none of them.
+func TestExecuteStreamStripsEmptyToolCalls(t *testing.T) {
+	stream := sseBody(
+		`{"id":"c1","choices":[{"index":0,"delta":{"content":"","reasoning_content":"我们","function_call":null,"refusal":"","tool_calls":[],"extra_fields":null},"finish_reason":""}]}`,
+		`{"id":"c1","choices":[{"index":0,"delta":{"content":"","reasoning_content":"需要","function_call":null,"refusal":"","tool_calls":[],"extra_fields":null},"finish_reason":""}]}`,
+		`{"id":"c1","choices":[{"index":0,"delta":{"content":"hi","reasoning_content":""},"finish_reason":"stop"}]}`,
+		"[DONE]",
+	)
+	fake := newFakeHost().
+		on(httpRoute{Method: http.MethodGet, Match: "api-overmind", Body: `{"data":{"value":{"version":"2026.9.4"}},"code":0}`}).
+		on(httpRoute{Method: http.MethodPost, Match: ChatPath, Headers: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: stream})
+	host := installFakeHost(t, fake)
+
+	request := pluginapi.ExecutorRequest{
+		Model:       "deepseek-v4.1-flash",
+		Payload:     []byte(`{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}]}`),
+		StorageJSON: mustJSON(t, &Credential{AccessToken: "token", FirstKeyfrom: "1", LatestKeyfrom: "2"}),
+	}
+	value, errStream := handleExecutorExecuteStream(host, mustJSON(t, request))
+	if errStream != nil {
+		t.Fatalf("handleExecutorExecuteStream: %v", errStream)
+	}
+	response := value.(executorStreamResponse)
+	if len(response.Chunks) != 3 {
+		t.Fatalf("chunks = %d, want 3", len(response.Chunks))
+	}
+	reasoning := strings.Builder{}
+	for index, chunk := range response.Chunks {
+		payload := string(chunk.Payload)
+		if strings.Contains(payload, `"tool_calls"`) {
+			t.Fatalf("chunk %d still carries tool_calls: %s", index, payload)
+		}
+		// The reasoning text must survive intact, or the fix would be trading a
+		// layout bug for data loss.
+		if index < 2 {
+			var decoded map[string]any
+			if errUnmarshal := decodeJSON([]byte(payload), &decoded); errUnmarshal != nil {
+				t.Fatalf("chunk %d is not JSON: %v", index, errUnmarshal)
+			}
+			choices := decoded["choices"].([]any)
+			delta := choices[0].(map[string]any)["delta"].(map[string]any)
+			reasoning.WriteString(delta["reasoning_content"].(string))
+		}
+	}
+	if got := reasoning.String(); got != "我们需要" {
+		t.Fatalf("reasoning = %q, want %q", got, "我们需要")
+	}
+}

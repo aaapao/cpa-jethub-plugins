@@ -51,6 +51,8 @@ type codebuddyFreshnessFixture struct {
 	billingTokens []string
 	// chatTokens records the Authorization header of each inference call.
 	chatTokens []string
+	// chatBody overrides the streamed chat answer; empty means the default frame.
+	chatBody string
 	// saved records what was written back through host.auth.save.
 	saved map[string]json.RawMessage
 }
@@ -115,7 +117,11 @@ func newCodebuddyFreshnessFixture(t *testing.T, expiresAtMS int64) (*codebuddyFr
 				return codebuddyHTTPResponse(http.StatusOK, codebuddyCheckin)
 			case strings.Contains(payload.URL, "/v2/chat/"):
 				fixture.chatTokens = append(fixture.chatTokens, payload.Headers.Get("Authorization"))
-				return codebuddyHTTPResponse(http.StatusOK, "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n\n")
+				body := fixture.chatBody
+				if body == "" {
+					body = "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n\n"
+				}
+				return codebuddyHTTPResponse(http.StatusOK, body)
 			}
 			return nil, fmt.Errorf("unexpected upstream call %s", payload.URL)
 		case pluginabi.MethodHostLog:
@@ -387,5 +393,76 @@ func TestCredentialExpiryLeavesAnUndatableCredentialAlone(t *testing.T) {
 	}
 	if credentialRefreshable(json.RawMessage(`{"access_token":"tok"}`)) {
 		t.Fatal("credentialRefreshable accepted a credential without a refresh token")
+	}
+}
+
+// TestExecutorStreamStripsEmptyToolCalls is the end-to-end guard for the
+// CodeBuddy wire convention that broke reasoning rendering downstream: every
+// frame carries `"tool_calls":[]`, and the AI SDK's openai-compatible provider
+// ends the active reasoning segment on any non-null `tool_calls`. One segment
+// per token is what a client renders as one word per row.
+//
+// The frames below reproduce the real shape captured from the live channel.
+func TestExecutorStreamStripsEmptyToolCalls(t *testing.T) {
+	fixture, host := newCodebuddyFreshnessFixture(t, time.Now().Add(time.Hour).UnixMilli())
+	fixture.chatBody = "data: " + `{"id":"cmb-1","model":"deepseek-v4.1-flash","object":"chat.completion.chunk","created":1790561792,"choices":[{"index":0,"delta":{"content":"","reasoning_content":"我们","function_call":null,"refusal":"","tool_calls":[],"extra_fields":null},"logprobs":null,"finish_reason":""}],"usage":null}` + "\n\n" +
+		"data: " + `{"id":"cmb-1","model":"deepseek-v4.1-flash","object":"chat.completion.chunk","created":1790561792,"choices":[{"index":0,"delta":{"content":"","reasoning_content":"需要","function_call":null,"refusal":"","tool_calls":[],"extra_fields":null},"logprobs":null,"finish_reason":""}],"usage":null}` + "\n\n" +
+		"data: " + `{"id":"cmb-1","choices":[{"index":0,"delta":{"content":"hi","reasoning_content":""},"finish_reason":"stop"}]}` + "\n\n" +
+		"data: [DONE]\n\n"
+
+	request := pluginapi.ExecutorRequest{
+		AuthID:       codebuddyLiveName,
+		AuthProvider: ProviderKey,
+		Model:        "deepseek-v4.1-flash",
+		StorageJSON:  codebuddyCredential("token", time.Now().Add(time.Hour).UnixMilli()),
+		Payload:      json.RawMessage(`{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}]}`),
+	}
+	raw, errMarshal := json.Marshal(request)
+	if errMarshal != nil {
+		t.Fatalf("marshal request: %v", errMarshal)
+	}
+	value, errStream := handleExecutorExecuteStream(host, raw)
+	if errStream != nil {
+		t.Fatalf("handleExecutorExecuteStream: %v", errStream)
+	}
+	response := value.(executorStreamResponse)
+	if len(response.Chunks) != 3 {
+		t.Fatalf("chunks = %d, want 3", len(response.Chunks))
+	}
+	reasoning := strings.Builder{}
+	for index, chunk := range response.Chunks {
+		payload := string(chunk.Payload)
+		if strings.HasPrefix(payload, "data:") || strings.Contains(payload, "[DONE]") {
+			t.Fatalf("chunk %d must stay bare: %q", index, payload)
+		}
+		if strings.Contains(payload, `"tool_calls"`) {
+			t.Fatalf("chunk %d still carries tool_calls: %s", index, payload)
+		}
+		// A round trip through map[string]any would rewrite `created` into
+		// scientific notation; the payload must be spliced, not re-marshalled.
+		if index < 2 && !strings.Contains(payload, `"created":1790561792`) {
+			t.Errorf("chunk %d lost its original number formatting: %s", index, payload)
+		}
+		var decoded struct {
+			Choices []struct {
+				Delta struct {
+					ReasoningContent string `json:"reasoning_content"`
+					Content          string `json:"content"`
+					Refusal          string `json:"refusal"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if errUnmarshal := json.Unmarshal([]byte(payload), &decoded); errUnmarshal != nil {
+			t.Fatalf("chunk %d is not JSON: %v (%s)", index, errUnmarshal, payload)
+		}
+		if index < 2 {
+			reasoning.WriteString(decoded.Choices[0].Delta.ReasoningContent)
+			if decoded.Choices[0].Delta.Content != "" {
+				t.Errorf("chunk %d content changed: %q", index, decoded.Choices[0].Delta.Content)
+			}
+		}
+	}
+	if got := reasoning.String(); got != "我们需要" {
+		t.Fatalf("reasoning = %q, want %q", got, "我们需要")
 	}
 }
