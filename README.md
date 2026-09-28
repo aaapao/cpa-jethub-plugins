@@ -334,24 +334,6 @@ curl http://localhost:8317/v1/chat/completions \
 
 插件通过 `host.call` 使用宿主能力。HTTP 请求一律由宿主执行，代理、TLS 与请求日志仍归宿主控制；因此插件本身不建立网络连接。
 
-## 验证状态
-
-在真实 CPA 宿主中验证过的部分（用 `docker.io/eceasy/cli-proxy-api` 起临时容器装入本仓库产物）：
-
-- **5 个插件可同时加载并注册**：宿主日志逐条输出 `pluginhost: plugin registered plugin_id=<id>`，管理 API 返回 `registered=true`、`effective_enabled=true`、`supports_oauth=true`、`supports_quota=true`；
-- **侧边栏每个插件只占一行**（共 5 行）：管理 API 返回的每个插件恰有 1 条带 `Menu` 的路由，登录页/签到页以空 `Menu` 的 resource 路由提供，浏览器可直接访问但不进侧边栏；
-- **容器内浏览器登录回调已端到端验证**：固定端口 `18091`、绑定 `0.0.0.0`、compose 发布后，从宿主机执行
-  `GET http://127.0.0.1:18091/oauth/callback?code=...` 得到 **307**（插件已捕获并跳转），随后轮询返回上游
-  STS 对假 code 的拒绝（`STS5.1805 invalid authorization code`）——证明 code 确实穿过容器边界抵达插件。
-  未发布该端口时同一请求连接失败（`curl` exit 000），与用户报告的 `ERR_CONNECTION_REFUSED` 一致，构成负向对照；
-- **`codearts` 走通凭据解析到模型目录的全链路**：注入测试凭据后宿主日志出现 `processing auth file` 与 `Registered new model ... from provider codearts`，`/v1/models` 返回 16 个模型；
-- **方法面**逐个经 C `dlopen` 探针调用：`plugin.register`、`auth.identifier`、`model.register`、`model.static`、`quota.identifier`、`quota.describe`、`request.translate`、`response.translate`、`management.register` 在 5 个插件上全部返回成功 envelope；
-- **`registry.json` 清单**用 CPA 真实解析器（`ParseRegistry` + `ValidateRegistry`）校验通过；发布产物按规范打包并校验 sha256。
-
-**Raccoon 的验证边界**：本仓库**没有** Raccoon 账号，因此只验证到「二维码页能打开、页面带可扫码的 PNG、轮询能跑」——**真实的微信扫码登录、模型推理与积分领取都没有跑通**。二维码编码器本身有独立验收：`go test ./internal/jethub/qr/` 会用 jsQR（与编码器无关的解码器）把渲染出的 PNG 解回来，覆盖 144 字节的真实登录 URL（版本 8）、"HELLO WORLD" 与 1–10 全部版本。另外两条前提**未对生产验证**：账号池身份字段是 `access_token`（会轮换，插件已避免依赖它），以及「服务端接受任意自造 code」——这只是参考实现的源码注释，没有测试覆盖。
-
-**尚未验证的部分**：五个平台的上游协议都**没有对真实服务端跑通过**——这里没有它们的账号。签名算法、载荷转换、SSE 解析、登录状态机、错误分类由单元测试覆盖（`go test ./...`），但**真实登录授权、模型调用与每日签到需要你用真实账号各试一次**。已知的取舍与未移植项记录在 [docs/PORTING.md](docs/PORTING.md)。
-
 ## 移植说明
 
 各插件与 Jet-Hub TypeScript 源文件的逐文件对应关系、已核实的端点、加密与登录流程、已知阻塞项，见 [docs/PORTING.md](docs/PORTING.md)。

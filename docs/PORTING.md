@@ -20,8 +20,7 @@ Two rules were applied throughout:
 > adapters (`codearts`, `codebuddy`, `qoder`, `trae`, `lobsterai`) are now implemented and
 > register the full method surface. The maps below remain the record of *what* was ported and
 > *where each fact came from*; where an implementation diverged from the plan, the plugin's own
-> code comments say so. See the README's "验证状态" section for what has and has not been
-> exercised against a live server.
+> code comments say so.
 >
 > The four-per-provider file split suggested in §1 was followed, with additions: every plugin
 > also carries `management.go`/`pluginui.go` (the HTML management pages) and its own focused
